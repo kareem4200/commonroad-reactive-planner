@@ -210,6 +210,7 @@ class FixedIntervalSampling(SamplingSpace):
 
         # initialize trajectory list
         list_trajectories = list()
+        list_samples = list()
 
         # get longitudinal samples (depending if velocity or position sampling is used)
         longitudinal_samples = self._get_lon_samples(level_sampling)
@@ -227,6 +228,7 @@ class FixedIntervalSampling(SamplingSpace):
                         end_state_lat = np.array([d, 0.0, 0.0])
                         # Switch to sampling over s for low velocities
                         if low_vel_mode:
+                            print("low velocity mode active")
                             s_lon_goal = trajectory_long.evaluate_state_at_tau(t)[0] - x_0_lon[0]
                             if s_lon_goal <= 0:
                                 s_lon_goal = t
@@ -234,12 +236,14 @@ class FixedIntervalSampling(SamplingSpace):
                                                                            x_d=end_state_lat)
                         # Switch to sampling over t for high velocities
                         else:
+                            # print("high velocity mode active")
                             trajectory_lat = self._generate_lat_trajectory(delta_tau=t, x_0=np.array(x_0_lat),
                                                                            x_d=end_state_lat)
                         if trajectory_lat.coeffs is not None:
                             trajectory_sample = TrajectorySample(self.horizon, self.dt, trajectory_long, trajectory_lat)
                             list_trajectories.append(trajectory_sample)
-        return list_trajectories
+                            list_samples.append([t, d, lon_sample])
+        return list_trajectories, list_samples
 
     def _get_lon_samples(self, level_sampling):
         if self._longitudinal_mode == "velocity_keeping":

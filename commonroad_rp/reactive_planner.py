@@ -111,6 +111,9 @@ class ReactivePlanner(object):
 
         # set standstill lookahead
         self._standstill_lookahead = config.planning.standstill_lookahead
+        
+        # dictionary to store the trajectory and its corresponding samples
+        self.trajectory_samples_dict = None
 
     @property
     def collision_checker(self) -> pycrcc.CollisionChecker:
@@ -433,9 +436,11 @@ class ReactivePlanner(object):
         logger.info("===== Sampling trajectories ... =====")
         logger.info(f"Sampling density {samp_level + 1} of {self.sampling_level}")
 
-        trajectories = self.sampling_space.generate_trajectories_at_level(samp_level, x_0_lon, x_0_lat,
-                                                                          self.config.sampling.longitudinal_mode,
-                                                                          self._low_vel_mode)
+        trajectories, samples = self.sampling_space.generate_trajectories_at_level(samp_level, x_0_lon, x_0_lat,
+                                                                                    self.config.sampling.longitudinal_mode,
+                                                                                    self._low_vel_mode)
+        # save trajectories and samples in a dictionary
+        self.trajectory_samples_dict = dict(zip(trajectories, samples))
 
         # create trajectory bundle
         trajectory_bundle = TrajectoryBundle(trajectories, cost_function=self.cost_function)
@@ -634,6 +639,9 @@ class ReactivePlanner(object):
                 break
             else:
                 i += 1
+                
+        if optimal_trajectory:
+            samples = self.trajectory_samples_dict[optimal_trajectory]
 
         if (optimal_trajectory is None or optimal_trajectory.cartesian.v[self._standstill_lookahead] <= 0.05) \
                 and self.x_0.velocity <= 0.05:
@@ -662,7 +670,7 @@ class ReactivePlanner(object):
         if planning_result is None:
             logger.warning(f"Planner failed to find an optimal trajectory with given sampling configuration!")
 
-        return planning_result
+        return planning_result, samples
 
     def _compute_standstill_trajectory(self) -> TrajectorySample:
         """
