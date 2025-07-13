@@ -228,7 +228,7 @@ class FixedIntervalSampling(SamplingSpace):
                         end_state_lat = np.array([d, 0.0, 0.0])
                         # Switch to sampling over s for low velocities
                         if low_vel_mode:
-                            print("low velocity mode active")
+                            
                             s_lon_goal = trajectory_long.evaluate_state_at_tau(t)[0] - x_0_lon[0]
                             if s_lon_goal <= 0:
                                 s_lon_goal = t
