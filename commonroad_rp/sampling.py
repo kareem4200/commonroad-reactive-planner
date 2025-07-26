@@ -14,6 +14,11 @@ from commonroad_rp.utility.config import ReactivePlannerConfiguration
 from commonroad_rp.polynomial_trajectory import QuinticTrajectory, QuarticTrajectory
 from commonroad_rp.trajectories import TrajectorySample
 
+import torch
+from model import CVAE, cvae_loss_function
+from cvae_helper import CVAEHelper
+
+
 try:
     from commonroad_reach.data_structure.reach.driving_corridor import DrivingCorridor
     import commonroad_reach.utility.reach_operation as util_reach_operation
@@ -183,6 +188,12 @@ class FixedIntervalSampling(SamplingSpace):
     def __init__(self, config: ReactivePlannerConfiguration):
         num_sampling_levels = config.sampling.num_sampling_levels
         super(FixedIntervalSampling, self).__init__(num_sampling_levels)
+        
+        self.use_cvae = config.sampling.use_cvae
+        if self.use_cvae:
+            self.cvae_model = CVAE(X_dim=3, c_dim=6+512, z_dim=16)
+            self.cvae_model.load_state_dict(torch.load('CVAE/model_weights/cvae_model.pth'))
+            self.cvae_helper = CVAEHelper(config.scenario, config.planning_problem)
 
         config_sampling = config.sampling
 
@@ -200,7 +211,7 @@ class FixedIntervalSampling(SamplingSpace):
         self.samples_s = PositionSampling(config_sampling.s_min, config_sampling.s_max, num_sampling_levels)
 
     def generate_trajectories_at_level(self, level_sampling: int, x_0_lon: np.ndarray, x_0_lat: np.ndarray,
-                                       longitudinal_mode: str, low_vel_mode: bool) \
+                                       longitudinal_mode: str, low_vel_mode: bool, time_step: int) \
             -> List[TrajectorySample]:
         """
         Implements trajectory generation method for sampling trajectories in fixed intervals in t, v, d  or s domain
@@ -212,38 +223,68 @@ class FixedIntervalSampling(SamplingSpace):
         list_trajectories = list()
         list_samples = list()
 
+        if not self.use_cvae:
         # get longitudinal samples (depending if velocity or position sampling is used)
-        longitudinal_samples = self._get_lon_samples(level_sampling)
+            longitudinal_samples = self._get_lon_samples(level_sampling)
 
-        # Iterate over pre-stored time samples
-        for t in self.samples_t.samples_at_level(level_sampling):
-            # Iterate over pre-stored longitudinal velocity or position samples
-            for lon_sample in longitudinal_samples:
+            # Iterate over pre-stored time samples
+            for t in self.samples_t.samples_at_level(level_sampling):
+                # Iterate over pre-stored longitudinal velocity or position samples
+                for lon_sample in longitudinal_samples:
+                    trajectory_long = self._generate_lon_trajectory(delta_tau=t, x_0=np.array(x_0_lon), lon_sample=lon_sample)
+
+                    # Sample lateral end states (add x_0_lat to sampled states)
+                    if trajectory_long.coeffs is not None:
+                        # Iterate over pre-stored lateral positions samples
+                        for d in self.samples_d.samples_at_level(level_sampling).union({x_0_lat[0]}):
+                            end_state_lat = np.array([d, 0.0, 0.0])
+                            # Switch to sampling over s for low velocities
+                            if low_vel_mode:
+                                
+                                s_lon_goal = trajectory_long.evaluate_state_at_tau(t)[0] - x_0_lon[0]
+                                if s_lon_goal <= 0:
+                                    s_lon_goal = t
+                                trajectory_lat = self._generate_lat_trajectory(delta_tau=s_lon_goal, x_0=np.array(x_0_lat),
+                                                                            x_d=end_state_lat)
+                            # Switch to sampling over t for high velocities
+                            else:
+                                # print("high velocity mode active")
+                                trajectory_lat = self._generate_lat_trajectory(delta_tau=t, x_0=np.array(x_0_lat),
+                                                                            x_d=end_state_lat)
+                            if trajectory_lat.coeffs is not None:
+                                trajectory_sample = TrajectorySample(self.horizon, self.dt, trajectory_long, trajectory_lat)
+                                list_trajectories.append(trajectory_sample)
+                                list_samples.append([t, d, lon_sample])
+            return list_trajectories, list_samples
+        
+        else:
+            # === CVAE-based sampling ===
+            with torch.inference_mode():
+                cvae_condition = self.cvae_helper._build_cvae_condition(time_step=time_step)
+
+                z = torch.randn(self.config.sampling.num_samples, self.cvae_model.z_dim)
+                c = cvae_condition.repeat(self.config.sampling.num_samples, 1)
+
+                x_sampled = self.cvae_model.decode(z, c).numpy()
+
+            for sample in x_sampled:
+                t, d, lon_sample = sample
                 trajectory_long = self._generate_lon_trajectory(delta_tau=t, x_0=np.array(x_0_lon), lon_sample=lon_sample)
-
-                # Sample lateral end states (add x_0_lat to sampled states)
                 if trajectory_long.coeffs is not None:
-                    # Iterate over pre-stored lateral positions samples
-                    for d in self.samples_d.samples_at_level(level_sampling).union({x_0_lat[0]}):
-                        end_state_lat = np.array([d, 0.0, 0.0])
-                        # Switch to sampling over s for low velocities
-                        if low_vel_mode:
-                            
-                            s_lon_goal = trajectory_long.evaluate_state_at_tau(t)[0] - x_0_lon[0]
-                            if s_lon_goal <= 0:
-                                s_lon_goal = t
-                            trajectory_lat = self._generate_lat_trajectory(delta_tau=s_lon_goal, x_0=np.array(x_0_lat),
-                                                                           x_d=end_state_lat)
-                        # Switch to sampling over t for high velocities
-                        else:
-                            # print("high velocity mode active")
-                            trajectory_lat = self._generate_lat_trajectory(delta_tau=t, x_0=np.array(x_0_lat),
-                                                                           x_d=end_state_lat)
-                        if trajectory_lat.coeffs is not None:
-                            trajectory_sample = TrajectorySample(self.horizon, self.dt, trajectory_long, trajectory_lat)
-                            list_trajectories.append(trajectory_sample)
-                            list_samples.append([t, d, lon_sample])
-        return list_trajectories, list_samples
+                    end_state_lat = np.array([d, 0.0, 0.0])
+                    if low_vel_mode:
+                        s_lon_goal = trajectory_long.evaluate_state_at_tau(t)[0] - x_0_lon[0]
+                        s_lon_goal = max(s_lon_goal, t)
+                        trajectory_lat = self._generate_lat_trajectory(delta_tau=s_lon_goal, x_0=np.array(x_0_lat), x_d=end_state_lat)
+                    else:
+                        trajectory_lat = self._generate_lat_trajectory(delta_tau=t, x_0=np.array(x_0_lat), x_d=end_state_lat)
+
+                    if trajectory_lat.coeffs is not None:
+                        trajectory_sample = TrajectorySample(self.horizon, self.dt, trajectory_long, trajectory_lat)
+                        list_trajectories.append(trajectory_sample)
+                        list_samples.append(sample.tolist())
+
+            return list_trajectories, list_samples
 
     def _get_lon_samples(self, level_sampling):
         if self._longitudinal_mode == "velocity_keeping":
