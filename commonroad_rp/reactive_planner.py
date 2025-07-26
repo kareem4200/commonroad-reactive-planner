@@ -438,7 +438,7 @@ class ReactivePlanner(object):
 
         trajectories, samples = self.sampling_space.generate_trajectories_at_level(samp_level, x_0_lon, x_0_lat,
                                                                                     self.config.sampling.longitudinal_mode,
-                                                                                    self._low_vel_mode)
+                                                                                    self._low_vel_mode, self.x_0.time_step)
         # save trajectories and samples in a dictionary
         self.trajectory_samples_dict = dict(zip(trajectories, samples))
 
