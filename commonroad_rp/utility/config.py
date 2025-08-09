@@ -13,7 +13,7 @@ from commonroad_dc.feasibility.vehicle_dynamics import VehicleParameterMapping
 from commonroad.common.solution import VehicleType
 from commonroad.scenario.scenario import Scenario
 from commonroad.planning.planning_problem import PlanningProblem, PlanningProblemSet
-from commonroad_route_planner.route import Route
+# from commonroad_route_planner.route import Route
 from vehiclemodels.vehicle_parameters import VehicleParameters
 
 from commonroad_rp.utility.general import load_scenario_and_planning_problem
@@ -163,6 +163,9 @@ class SamplingConfiguration(BaseConfiguration):
     # lateral sampling interval around reference path in [m]
     d_min: float = -3
     d_max: float = 3
+    # CVAE sampling parameters
+    cvae_sampling: bool = False
+    num_samples: int = 1
 
 
 @dataclass
