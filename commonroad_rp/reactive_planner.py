@@ -642,6 +642,8 @@ class ReactivePlanner(object):
                 
         if optimal_trajectory:
             samples = self.trajectory_samples_dict[optimal_trajectory]
+        else:
+            samples = None
 
         if (optimal_trajectory is None or optimal_trajectory.cartesian.v[self._standstill_lookahead] <= 0.05) \
                 and self.x_0.velocity <= 0.05:
@@ -738,6 +740,7 @@ class ReactivePlanner(object):
         # loop over list of trajectories
         for trajectory in trajectories:
             # create time array and precompute time interval information
+            # print(trajectory.trajectory_long.delta_tau)
             t = np.arange(0, np.round(trajectory.trajectory_long.delta_tau + self.dt, 5), self.dt)
             t2 = np.square(t)
             t3 = t2 * t
@@ -754,7 +757,7 @@ class ReactivePlanner(object):
 
             # length of the trajectory sample (i.e., number of time steps. can be smaller than planning horizon)
             traj_len = len(t)
-
+            # print(traj_len, len(trajectory.trajectory_long.calc_position(t, t2, t3, t4, t5)))
             # compute longitudinal position, velocity, acceleration from trajectory sample
             s[:traj_len] = trajectory.trajectory_long.calc_position(t, t2, t3, t4, t5)  # lon pos
             s_velocity[:traj_len] = trajectory.trajectory_long.calc_velocity(t, t2, t3, t4)  # lon velocity
