@@ -15,8 +15,8 @@ from commonroad_rp.polynomial_trajectory import QuinticTrajectory, QuarticTrajec
 from commonroad_rp.trajectories import TrajectorySample
 
 import torch
-from model import CVAE, cvae_loss_function
-from cvae_helper import CVAEHelper
+from cvae.model.model import CVAE, cvae_loss_function
+from commonroad_rp.cvae_helper import CVAEHelper
 
 
 try:
@@ -189,10 +189,12 @@ class FixedIntervalSampling(SamplingSpace):
         num_sampling_levels = config.sampling.num_sampling_levels
         super(FixedIntervalSampling, self).__init__(num_sampling_levels)
         
-        self.use_cvae = config.sampling.use_cvae
+        self.use_cvae = config.sampling.cvae_sampling
         if self.use_cvae:
+            self.cvae_num_samples = config.sampling.num_samples
             self.cvae_model = CVAE(X_dim=3, c_dim=6+512, z_dim=16)
-            self.cvae_model.load_state_dict(torch.load('CVAE/model_weights/cvae_model.pth'))
+            self.cvae_model.load_state_dict(torch.load(
+                '/home/kareem/frenet_optimal_trajectory_planner/CVAE/CVAE/model_weights/cvae_model.pth'))
             self.cvae_helper = CVAEHelper(config.scenario, config.planning_problem)
 
         config_sampling = config.sampling
@@ -262,9 +264,11 @@ class FixedIntervalSampling(SamplingSpace):
             with torch.inference_mode():
                 cvae_condition = self.cvae_helper._build_cvae_condition(time_step=time_step)
 
-                z = torch.randn(self.config.sampling.num_samples, self.cvae_model.z_dim)
-                c = cvae_condition.repeat(self.config.sampling.num_samples, 1)
+                z = torch.randn(self.cvae_num_samples, 16) # latent dimension is 16 like training
+                # c = cvae_condition.repeat(self.cvae_num_samples, 0)
 
+                z = z.to(torch.float32)
+                c = torch.tensor(cvae_condition, dtype=torch.float32).unsqueeze(0).repeat(self.cvae_num_samples, 1)
                 x_sampled = self.cvae_model.decode(z, c).numpy()
 
             for sample in x_sampled:
