@@ -9,9 +9,9 @@ import torchvision.transforms as transforms
 import commonroad
 from commonroad.visualization.mp_renderer import MPRenderer
 
-base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'model'))
-sys.path.append(base_dir)
-from model import CVAE, cvae_loss_function
+# base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'model'))
+# sys.path.append(base_dir)
+from cvae.model.model import CVAE, cvae_loss_function
 
 
 class CVAEHelper:
@@ -75,7 +75,7 @@ class CVAEHelper:
             ])
             
             feature_vector = self.encode_scenario_image(time_step)
-            condition.append(feature_vector)
+            condition = np.append(condition, feature_vector)
             
             return condition
 
