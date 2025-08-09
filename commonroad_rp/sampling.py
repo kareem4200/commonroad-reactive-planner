@@ -194,7 +194,7 @@ class FixedIntervalSampling(SamplingSpace):
             self.cvae_num_samples = config.sampling.num_samples
             self.cvae_model = CVAE(X_dim=3, c_dim=6+512, z_dim=16)
             self.cvae_model.load_state_dict(torch.load(
-                '/home/kareem/frenet_optimal_trajectory_planner/CVAE/CVAE/model_weights/cvae_model.pth'))
+                '/home/kareem/frenet_optimal_trajectory_planner/CVAE/cvae/model_weights/cvae_model.pth'))
             self.cvae_helper = CVAEHelper(config.scenario, config.planning_problem)
 
         config_sampling = config.sampling

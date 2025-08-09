@@ -22,7 +22,7 @@ class CVAEHelper:
             # self.cvae_model = CVAE(X_dim=X_dim, c_dim=c_dim, z_dim=z_dim, h_Q_dim=h_Q_dim, h_P_dim=h_P_dim)
             # model.load_state_dict(torch.load('CVAE/model_weights/cvae_model.pth'))
             
-            self.resnet_fe = resnet18 = models.resnet18(pretrained=True)
+            self.resnet_fe = resnet18 = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
             self.resnet_fe = torch.nn.Sequential(*list(resnet18.children())[:-1])
             
             self._scenario = scenario
