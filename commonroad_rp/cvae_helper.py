@@ -9,18 +9,12 @@ import torchvision.transforms as transforms
 import commonroad
 from commonroad.visualization.mp_renderer import MPRenderer
 
-# base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'model'))
-# sys.path.append(base_dir)
 from cvae.model.model import CVAE, cvae_loss_function
 
+import time
 
 class CVAEHelper:
       def __init__(self, scenario, planning_problem):
-            # self.cvae_model = cvae_model
-            # self.cvae_model.eval()
-            
-            # self.cvae_model = CVAE(X_dim=X_dim, c_dim=c_dim, z_dim=z_dim, h_Q_dim=h_Q_dim, h_P_dim=h_P_dim)
-            # model.load_state_dict(torch.load('CVAE/model_weights/cvae_model.pth'))
             
             self.resnet_fe = resnet18 = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
             self.resnet_fe = torch.nn.Sequential(*list(resnet18.children())[:-1])
@@ -34,25 +28,9 @@ class CVAEHelper:
                   transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                           std =[0.229, 0.224, 0.225])
             ])
-      # @property
-      # def scenario(self):
-      #       if self._scenario is None:
-      #             raise ValueError("Scenario not set.")
-      #       return self._scenario
-      
-      # @scenario.setter
-      # def scenario(self, scenario):
-      #       self._scenario = scenario
             
-      # @property
-      # def planning_problem(self):
-      #       if self._pp is None:
-      #             raise ValueError("Planning problem set not set.")
-      #       return self._pp
-            
-      # @planning_problem.setter
-      # def planning_problem(self, planning_problem):
-      #       self._planning_problem = planning_problem
+            # self._times = []
+
 
       def _build_cvae_condition(self, time_step):
             # Scenario has attribute position as a lanelet in goal (get the center of the lanelet) 
@@ -83,6 +61,7 @@ class CVAEHelper:
             """
             Renders a CommonRoad scenario and encodes the resulting image.
             """
+            # start_time = time.time()
             # Draw the scenario with the renderer
             renderer = MPRenderer()
             renderer.draw_params.axis_visible = False
@@ -107,4 +86,7 @@ class CVAEHelper:
             img_tensor = self._transform(img).unsqueeze(0)
             with torch.inference_mode():
                   features = self.resnet_fe(img_tensor).squeeze()  # shape: (512,)
+                  
+            # self._times.append(time.time() - start_time)
+            
             return features.numpy()
