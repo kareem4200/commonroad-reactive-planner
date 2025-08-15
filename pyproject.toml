@@ -41,6 +41,7 @@ commonroad_vehicle_models = ">=3.0.2"
 CVAE = { path = "../", develop = true }
 torch = "^2.8.0"
 torchvision = "^0.23.0"
+tensorboard = "^2.20.0"
 
 [tool.poetry.group.docs]
 optional = true
