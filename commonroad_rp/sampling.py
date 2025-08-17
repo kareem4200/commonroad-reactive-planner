@@ -189,15 +189,17 @@ class FixedIntervalSampling(SamplingSpace):
         num_sampling_levels = config.sampling.num_sampling_levels
         super(FixedIntervalSampling, self).__init__(num_sampling_levels)
         
+        self.config_sampling = config.sampling
+        
         self.use_cvae = config.sampling.cvae_sampling
         if self.use_cvae:
-            self.cvae_num_samples = config.sampling.num_samples
-            self.cvae_model = CVAE(X_dim=3, c_dim=6+512, z_dim=16)
+            self.cvae_num_samples = self.config_sampling.num_samples
+            self.cvae_model = CVAE(X_dim=3, 
+                                   c_dim=self.config_sampling.c_dim, 
+                                   z_dim=self.config_sampling.z_dim)
             self.cvae_model.load_state_dict(torch.load(
-                '/home/kareem/frenet_optimal_trajectory_planner/CVAE/cvae/model_weights/cvae_model.pth'))
+                self.config_sampling.cvae_model_path))
             self.cvae_helper = CVAEHelper(config.scenario, config.planning_problem)
-
-        config_sampling = config.sampling
 
         # timestep and horizon
         self.dt = config.planning.dt
@@ -207,10 +209,10 @@ class FixedIntervalSampling(SamplingSpace):
         self._longitudinal_mode = None
 
         # initialize and pre-compute samples in t, d, v domains
-        self.samples_t = TimeSampling(config_sampling.t_min, self.horizon, num_sampling_levels, self.dt)
-        self.samples_d = PositionSampling(config_sampling.d_min, config_sampling.d_max, num_sampling_levels)
-        self.samples_v = VelocitySampling(config_sampling.v_min, config_sampling.v_max, num_sampling_levels)
-        self.samples_s = PositionSampling(config_sampling.s_min, config_sampling.s_max, num_sampling_levels)
+        self.samples_t = TimeSampling(self.config_sampling.t_min, self.horizon, num_sampling_levels, self.dt)
+        self.samples_d = PositionSampling(self.config_sampling.d_min, self.config_sampling.d_max, num_sampling_levels)
+        self.samples_v = VelocitySampling(self.config_sampling.v_min, self.config_sampling.v_max, num_sampling_levels)
+        self.samples_s = PositionSampling(self.config_sampling.s_min, self.config_sampling.s_max, num_sampling_levels)
 
     def generate_trajectories_at_level(self, level_sampling: int, x_0_lon: np.ndarray, x_0_lat: np.ndarray,
                                        longitudinal_mode: str, low_vel_mode: bool, time_step: int) \
@@ -264,7 +266,7 @@ class FixedIntervalSampling(SamplingSpace):
             with torch.inference_mode():
                 cvae_condition = self.cvae_helper._build_cvae_condition(time_step=time_step)
 
-                z = torch.randn(self.cvae_num_samples, 16) # latent dimension is 16 like training
+                z = torch.randn(self.cvae_num_samples, self.config_sampling.z_dim) # latent dimension is like training
                 # c = cvae_condition.repeat(self.cvae_num_samples, 0)
 
                 z = z.to(torch.float32)

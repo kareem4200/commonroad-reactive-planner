@@ -91,7 +91,7 @@ if args.scenario:
                         if config.debug.draw_traj_set:
                               sampled_trajectory_bundle = deepcopy(planner.stored_trajectories)
                               
-                        # visualize the current time step of the simulation
+                  # visualize the current time step of the simulation
                   if config.debug.show_plots or config.debug.save_plots:
                         visualize_planner_at_timestep(scenario=config.scenario, planning_problem=config.planning_problem,
                                                       ego=ego_vehicle, traj_set=sampled_trajectory_bundle,
@@ -135,8 +135,7 @@ else:
                         # set reference path for curvilinear coordinate system
                         planner.set_reference_path(route.reference_path)
                         while not planner.goal_reached():
-                              current_count = len(planner.record_state_list) - 1
-                              print(current_count)
+                              current_count = len(planner.record_state_list)
 
                               planner.set_desired_velocity(current_speed=planner.x_0.velocity)
 
