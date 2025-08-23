@@ -626,7 +626,8 @@ class ReactivePlanner(object):
 
             # find optimal trajectory (kinematic check/sorting/collision check)
             t0 = time.time()
-            optimal_trajectory = self._get_optimal_trajectory(bundle)
+            feasible_trajectories = self._get_optimal_trajectory(bundle)
+            optimal_trajectory = feasible_trajectories[0] if feasible_trajectories else None
 
             logger.info("===== Planning result =====")
             logger.info(f"Total checking time: {time.time() - t0:.7f}")
@@ -640,8 +641,8 @@ class ReactivePlanner(object):
             else:
                 i += 1
                 
-        if optimal_trajectory:
-            samples = self.trajectory_samples_dict[optimal_trajectory]
+        if feasible_trajectories:
+            samples = [self.trajectory_samples_dict[trajectory] for trajectory in feasible_trajectories]
         else:
             samples = None
 
@@ -1027,12 +1028,15 @@ class ReactivePlanner(object):
                 return False
         return True
 
-    def _check_collisions(self, trajectory_bundle: TrajectoryBundle) -> Union[TrajectorySample, None]:
+    def _check_collisions(self, trajectory_bundle: TrajectoryBundle) -> Union[List[TrajectorySample], None]:
         """
         Lazy check: Iterates over the sorted list of trajectory samples and returns the first non-colliding sample.
         If all samples collide, returns None.
         :param trajectory_bundle: (Sorted) Bundle of trajectory samples
         """
+        # list to store feasible trajectories
+        feasible_trajectories = list()
+        
         # collision object dimensions
         half_length = 0.5 * self.vehicle_params.length
         half_width = 0.5 * self.vehicle_params.width
@@ -1069,9 +1073,13 @@ class ReactivePlanner(object):
                     break
 
             if not collide:
-                logger.info(f"Collision checks took:  \t{time.time() - t0:.7f}s")
-                return trajectory
-        return None
+                feasible_trajectories.append(trajectory)
+                # logger.info(f"Collision checks took:  \t{time.time() - t0:.7f}s")
+                # return trajectory
+        if feasible_trajectories:
+            return feasible_trajectories
+        else:
+            return None
 
     def _get_optimal_trajectory(self, trajectory_bundle: TrajectoryBundle) -> Union[TrajectorySample, None]:
         """
@@ -1143,8 +1151,8 @@ class ReactivePlanner(object):
         logger.info(f"Sort trajectories took:  \t{time.time() - t0:.7f}s")
 
         # ==== Collision checking
-        collision_free_trajectory: Optional[TrajectorySample] = self._check_collisions(trajectory_bundle)
-        return collision_free_trajectory
+        collision_free_trajectories: Optional[List[TrajectorySample]] = self._check_collisions(trajectory_bundle)
+        return collision_free_trajectories
 
     def convert_state_list_to_commonroad_object(self, state_list: List[ReactivePlannerState], obstacle_id: int = 42):
         """
