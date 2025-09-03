@@ -48,7 +48,7 @@ scenarios_dir = "../cvae/scenarios"
 # *************************************
 # run route planner and add reference path to config
 
-time_start = time.time()
+time_list = []
 if args.scenario:
       sc = args.scenario
       print(f"Planning for {sc}")
@@ -73,8 +73,9 @@ if args.scenario:
                   planner.set_desired_velocity(current_speed=planner.x_0.velocity)
 
                   # call plan function
+                  time_start = time.time()
                   optimal, _ = planner.plan()
-
+                  time_list.append(time.time() - time_start)
                   # record planned state and input
                   planner.record_state_and_input(optimal[0].state_list[1])
 
@@ -100,14 +101,16 @@ if args.scenario:
             # save sampled variables and conditiobned variables if scenario is successfully planned
             if planner.goal_reached():
                   print(colored(f"Scenario {sc} successfully planned!", "green"))
-                  print(f"Planning took {time.time() - time_start} seconds")
-                  # avg_encode = sum(planner.sampling_space.cvae_helper._times) /\
-                  # len(planner.sampling_space.cvae_helper._times)
-                  # print(f"Average time to encode 1 scenario image is {avg_encode} seconds")
+                  print(f"Planning 1 time step takes on average {sum(time_list) / len(time_list)} seconds")
+                  # print(f"Planning took {time.time() - time_start} seconds")
+                  if config.sampling.cvae_sampling:
+                        avg_encode = sum(planner.sampling_space.cvae_helper._times) /\
+                        len(planner.sampling_space.cvae_helper._times)
+                        print(f"Average time to encode 1 scenario image is {avg_encode} seconds")
                   # print(f"Number of samples: {planner.record_state_list[-1].time_step}")
                   # save_scenario_imgs(sc[:-4], planner.record_state_list[-1].time_step)
                   # make gif
-                  make_gif(config, range(0, planner.record_state_list[-1].time_step))
+                  # make_gif(config, range(0, planner.record_state_list[-1].time_step))
 
       except Exception as e:
             print(colored(f"Scenario {sc} failed!", "red"))

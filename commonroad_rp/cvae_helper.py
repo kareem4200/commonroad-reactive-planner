@@ -29,10 +29,11 @@ class CVAEHelper:
                                           std =[0.229, 0.224, 0.225])
             ])
             
-            # self._times = []
+            self._times = []
 
 
       def _build_cvae_condition(self, time_step):
+            start = time.time()
             # Scenario has attribute position as a lanelet in goal (get the center of the lanelet) 
             if isinstance(self._planning_problem.goal.state_list[0].position, \
                   commonroad.geometry.shape.ShapeGroup):
@@ -54,6 +55,7 @@ class CVAEHelper:
             
             feature_vector = self.encode_scenario_image(time_step)
             condition = np.append(condition, feature_vector)
+            self._times.append(time.time() - start)
             
             return condition
 
