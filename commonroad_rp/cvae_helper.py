@@ -15,9 +15,9 @@ import time
 
 class CVAEHelper:
       def __init__(self, scenario, planning_problem):
-            
-            self.resnet_fe = resnet18 = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
-            self.resnet_fe = torch.nn.Sequential(*list(resnet18.children())[:-1])
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            resnet18 = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+            self.resnet_fe = torch.nn.Sequential(*list(resnet18.children())[:-1]).to(self.device)
             
             self._scenario = scenario
             self._planning_problem = planning_problem
@@ -86,9 +86,10 @@ class CVAEHelper:
 
             # Transform and extract features
             img_tensor = self._transform(img).unsqueeze(0)
+            img_tensor = img_tensor.to(self.device)
             with torch.inference_mode():
                   features = self.resnet_fe(img_tensor).squeeze()  # shape: (512,)
                   
             # self._times.append(time.time() - start_time)
             
-            return features.numpy()
+            return features.to("cpu").numpy()
