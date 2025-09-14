@@ -35,22 +35,22 @@ class CVAEHelper:
       def _build_cvae_condition(self, time_step):
             start = time.time()
             # Scenario has attribute position as a lanelet in goal (get the center of the lanelet) 
-            if isinstance(self._planning_problem.goal.state_list[0].position, \
-                  commonroad.geometry.shape.ShapeGroup):
-                  goal_pos = self._planning_problem.goal.state_list[0].position.shapes[0].center
+            # if isinstance(self._planning_problem.goal.state_list[0].position, \
+            #       commonroad.geometry.shape.ShapeGroup):
+            #       goal_pos = self._planning_problem.goal.state_list[0].position.shapes[0].center
                   
-            # Scenario has attribute position as a rectangle in goal (get the center of the rectangle)
-            elif isinstance(self._planning_problem.goal.state_list[0].position, \
-                  commonroad.geometry.shape.Rectangle):
-                  goal_pos = self._planning_problem.goal.state_list[0].position.center
+            # # Scenario has attribute position as a rectangle in goal (get the center of the rectangle)
+            # elif isinstance(self._planning_problem.goal.state_list[0].position, \
+            #       commonroad.geometry.shape.Rectangle):
+            #       goal_pos = self._planning_problem.goal.state_list[0].position.center
             
             condition = np.array([
                   self._planning_problem.initial_state.position[0],
                   self._planning_problem.initial_state.position[1],
                   self._planning_problem.initial_state.orientation,
                   self._planning_problem.initial_state.velocity,
-                  goal_pos[0],
-                  goal_pos[1]
+                  self._planning_problem.initial_state.acceleration,
+                  self._planning_problem.initial_state.yaw_rate,
             ])
             
             feature_vector = self.encode_scenario_image(time_step)

@@ -757,7 +757,7 @@ class ReactivePlanner(object):
 
             # length of the trajectory sample (i.e., number of time steps. can be smaller than planning horizon)
             traj_len = len(t)
-            # print(traj_len, len(trajectory.trajectory_long.calc_position(t, t2, t3, t4, t5)))
+            # logger.info(f"{traj_len}, {len(trajectory.trajectory_long.calc_position(t, t2, t3, t4, t5))}")
             # compute longitudinal position, velocity, acceleration from trajectory sample
             s[:traj_len] = trajectory.trajectory_long.calc_position(t, t2, t3, t4, t5)  # lon pos
             s_velocity[:traj_len] = trajectory.trajectory_long.calc_velocity(t, t2, t3, t4)  # lon velocity

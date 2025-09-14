@@ -275,6 +275,15 @@ class FixedIntervalSampling(SamplingSpace):
 
             for sample in x_sampled:
                 t, d, lon_sample = sample
+                
+                ##### potentially clip sampled values to valid range #####
+                t = np.clip(t, self.config_sampling.t_min, self.horizon)
+                # d = np.clip(d, self.config_sampling.d_min, self.config_sampling.d_max)
+                # if self._longitudinal_mode == "velocity_keeping":
+                #     lon_sample = np.clip(lon_sample, self.config_sampling.v_min, self.config_sampling.v_max)
+                # elif self._longitudinal_mode == "stopping":
+                #     lon_sample = np.clip(lon_sample, self.config_sampling.s_min, self.config_sampling.s_max)
+                
                 trajectory_long = self._generate_lon_trajectory(delta_tau=t, x_0=np.array(x_0_lon), lon_sample=lon_sample)
                 if trajectory_long.coeffs is not None:
                     end_state_lat = np.array([d, 0.0, 0.0])
