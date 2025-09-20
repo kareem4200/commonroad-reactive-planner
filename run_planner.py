@@ -37,7 +37,7 @@ args = parser.parse_args()
 # Set Configurations
 # *************************************
 config_file = "../cvae/config/reactive_planner_config.yaml"
-scenarios_dir = "../cvae/scenarios_v2"
+scenarios_dir = "../cvae/scenarios/rp_success"
 
 # initialize and get logger
 logger = initialize_logger(ReactivePlannerConfiguration())

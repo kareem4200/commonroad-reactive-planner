@@ -194,6 +194,7 @@ class FixedIntervalSampling(SamplingSpace):
         self.use_cvae = config.sampling.cvae_sampling
         if self.use_cvae:
             self.cvae_num_samples = self.config_sampling.num_samples
+            self.pre_encoded_imgs = self.config_sampling.pre_encoded_imgs
             self.cvae_model = CVAE(X_dim=3, 
                                    c_dim=self.config_sampling.c_dim, 
                                    z_dim=self.config_sampling.z_dim)
@@ -264,7 +265,9 @@ class FixedIntervalSampling(SamplingSpace):
         else:
             # === CVAE-based sampling ===
             with torch.inference_mode():
-                cvae_condition = self.cvae_helper._build_cvae_condition(time_step=time_step)
+                cvae_condition = self.cvae_helper._build_cvae_condition(
+                    time_step=time_step, 
+                    pre_encoded=self.pre_encoded_imgs)
 
                 z = torch.randn(self.cvae_num_samples, self.config_sampling.z_dim) # latent dimension is like training
                 # c = cvae_condition.repeat(self.cvae_num_samples, 0)
