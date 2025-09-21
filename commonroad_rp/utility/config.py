@@ -168,6 +168,7 @@ class SamplingConfiguration(BaseConfiguration):
     num_samples: int = 1
     cvae_model_path: str = ""
     pre_encoded_imgs: bool = True   # whether to use pre-encoded scenario images or encode on the fly
+    device: str = "cpu"  # "cpu" or "cuda"
     z_dim: int = 32  # latent dimension, should match the CVAE model used for training
     c_dim: int = 6 + 512  # conditioned dimension, should match the CVAE model used for training
 
