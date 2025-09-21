@@ -69,7 +69,7 @@ class ReactivePlanner(object):
 
         # planner initial states (cartesian and curvilinear)
         self.x_0: Optional[ReactivePlannerState] = None
-        self.x_0_cl: Optional[Tuple[List, List]] = None
+        self.x_0_cl: Optional[Tuple[List, List, int]] = None
 
         # coordinate system & collision checker
         self._co: Optional[CoordinateSystem] = None
@@ -114,6 +114,21 @@ class ReactivePlanner(object):
         
         # dictionary to store the trajectory and its corresponding samples
         self.trajectory_samples_dict = None
+        
+        # keep track of number of trajectories sampled
+        self._num_sampled_trajectories = 0
+        
+    @property
+    def num_sampled_trajectories(self) -> int:
+        """Number of sampled trajectories in the last planning run"""
+        return self._num_sampled_trajectories
+    
+    @num_sampled_trajectories.setter
+    def num_sampled_trajectories(self, value: int):
+        """Set number of sampled trajectories"""
+        if not isinstance(value, int) or value < 0:
+            raise ValueError("Number of sampled trajectories must be a non-negative integer.")
+        self._num_sampled_trajectories = value
 
     @property
     def collision_checker(self) -> pycrcc.CollisionChecker:
@@ -445,6 +460,8 @@ class ReactivePlanner(object):
         # create trajectory bundle
         trajectory_bundle = TrajectoryBundle(trajectories, cost_function=self.cost_function)
 
+        self.num_sampled_trajectories += len(trajectory_bundle.trajectories)
+
         logger.info(f"Number of trajectory samples: {len(trajectory_bundle.trajectories)}")
         return trajectory_bundle
 
@@ -514,7 +531,7 @@ class ReactivePlanner(object):
         x_0_lon: List[float] = [s, s_velocity, s_acceleration]
         x_0_lat: List[float] = [d, d_velocity, d_acceleration]
 
-        return x_0_lon, x_0_lat
+        return x_0_lon, x_0_lat, theta_cl
 
     def _compute_trajectory_pair(self, trajectory: TrajectorySample) -> Tuple[Trajectory, Trajectory, List, List]:
         """
@@ -561,6 +578,52 @@ class ReactivePlanner(object):
                 [trajectory.curvilinear.s[i], trajectory.curvilinear.s_dot[i], trajectory.curvilinear.s_ddot[i]])
             lat_list.append(
                 [trajectory.curvilinear.d[i], trajectory.curvilinear.d_dot[i], trajectory.curvilinear.d_ddot[i]])
+            
+        # ---------------------------------------------------------------
+        # NOTE: This should be correct
+        
+        cart_sample = CartesianSample(
+            x=np.array([cart_list[i].position[0] for i in range(len(cart_list))]),
+            y=np.array([cart_list[i].position[1] for i in range(len(cart_list))]),
+            theta=np.array([cart_list[i].orientation for i in range(len(cart_list))]),
+            v=np.array([cart_list[i].velocity for i in range(len(cart_list))]),
+            a=np.array([cart_list[i].acceleration for i in range(len(cart_list))]),
+            kappa=np.empty(len(cart_list)),  # not used
+            kappa_dot=np.empty(len(cart_list)),  # not used
+            current_time_step=cart_list[0].time_step  # I do not care about current time step here / not used
+        )
+        
+        s = []
+        s_dot = []
+        s_ddot = []
+        d = []
+        d_dot = []
+        d_ddot = []
+        theta_cl = []
+        
+        for i in range(len(cart_list)):
+            s_lon, s_lat, cl_theta = self._compute_initial_states(cart_list[i])
+            
+            s.append(s_lon[0])
+            s_dot.append(s_lon[1])
+            s_ddot.append(s_lon[2])
+            d.append(s_lat[0])
+            d_dot.append(s_lat[1])
+            d_ddot.append(s_lat[2])
+            theta_cl.append(cl_theta)
+        
+        cvln_sample = CurviLinearSample(
+            s = np.array(s),
+            ss = np.array(s_dot),
+            sss = np.array(s_ddot),
+            d = np.array(d),
+            dd = np.array(d_dot),
+            ddd = np.array(d_ddot),
+            theta = np.array(theta_cl),
+            current_time_step=cart_list[0].time_step  # I do not care about current time step here / not used
+        )
+        # print("theta_cl", theta_cl)
+        # ---------------------------------------------------------------
 
         # make Cartesian and Curvilinear Trajectory
         cartTraj = Trajectory(self.x_0.time_step, cart_list)
@@ -570,7 +633,7 @@ class ReactivePlanner(object):
         cartTraj_corrected = shift_orientation(cartTraj, interval_start=self.x_0.orientation - np.pi,
                                                interval_end=self.x_0.orientation + np.pi)
 
-        return cartTraj_corrected, cvlnTraj, lon_list, lat_list
+        return cartTraj_corrected, cvlnTraj, lon_list, lat_list, cart_sample, cvln_sample
 
     def plan(self, current_sampling_level: int = None) -> tuple:
         """
@@ -593,7 +656,7 @@ class ReactivePlanner(object):
         assert self.x_0_cl is not None, "<ReactivePlanner.plan(): Planner curvilinear initial state is empty!>"
 
         # get curvilinear initial states
-        x_0_lon, x_0_lat = self.x_0_cl
+        x_0_lon, x_0_lat, _ = self.x_0_cl
 
         # set low velocity mode given initial velocity in self.x_0
         self._low_vel_mode = True if self.x_0.velocity < self.config.planning.low_vel_mode_threshold else False
@@ -681,7 +744,7 @@ class ReactivePlanner(object):
         """
         # current planner initial state
         x_0 = self.x_0
-        x_0_lon, x_0_lat = self.x_0_cl
+        x_0_lon, x_0_lat, _ = self.x_0_cl
 
         # create artificial standstill trajectory
         logger.info("Adding standstill trajectory")
