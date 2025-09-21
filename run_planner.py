@@ -45,287 +45,151 @@ scenarios_dir = "../cvae/all_scenarios"
 # initialize and get logger
 logger = initialize_logger(ReactivePlannerConfiguration())
 
+EVAL = True
 
+if args.scenario:
+    scenarios = [args.scenario]
+else:
+    scenarios = os.listdir(scenarios_dir)
+    
 # *************************************
 # Initialize Planner
 # *************************************
-# run route planner and add reference path to config
+
 evaluation = Evaluation()
 
-if args.scenario:
-    sc = args.scenario
-    config = ReactivePlannerConfiguration.load(config_file, sc)
-    config.update()
-    
-    evaluation.config = config
-    time_list = []
-    
-    # num_sampled
-    
+for i, sc in enumerate(scenarios[:100]):
+    # --- initialize accumulators ---
     cart_x, cart_y, cart_theta, cart_v, cart_a = [], [], [], [], []
     cl_s, cl_s_dot, cl_s_ddot, cl_d, cl_d_dot, cl_d_ddot, cl_theta = [], [], [], [], [], [], []
     
-    logger.info(f"Planning for {sc}")
-    
-    try:
-        # run route planner
-        route_planner = RoutePlanner(config.scenario, config.planning_problem)
-        route = route_planner.plan_routes().retrieve_first_route()
+    if sc.endswith(".xml"):            
+        
+        time_list = []
+        config = ReactivePlannerConfiguration.load(config_file, sc)
+        config.update()
+        
+        evaluation.config = config
+        
+        logger.info(f"Planning for {sc}")
+
+        try:
+            # run route planner
+            route_planner = RoutePlanner(config.scenario, config.planning_problem)
+            route = route_planner.plan_routes().retrieve_first_route()
+                    
+            # get reference path
+            reference_path = route.reference_path
+            
+            planner = ReactivePlanner(config=config)
+
+            # set reference path for curvilinear coordinate system
+            planner.set_reference_path(route.reference_path)
+            
+            # seed with initial state
+            cart_x.append(planner.x_0.position[0])
+            cart_y.append(planner.x_0.position[1])
+            cart_theta.append(planner.x_0.orientation)
+            cart_v.append(planner.x_0.velocity)
+            cart_a.append(planner.x_0.acceleration)
+
+            lon, lat, cl_theta0 = planner._compute_initial_states(planner.x_0)
+            cl_s.append(lon[0])
+            cl_s_dot.append(lon[1])
+            cl_s_ddot.append(lon[2])
+            cl_d.append(lat[0])
+            cl_d_dot.append(lat[1])
+            cl_d_ddot.append(lat[2])
+            cl_theta.append(cl_theta0)
+
+            while not planner.goal_reached():
+                current_count = len(planner.record_state_list)
+
+                planner.set_desired_velocity(current_speed=planner.x_0.velocity)
+
+                time_start = time.time()
+                # call plan function
+                optimal, _ = planner.plan()
+
+                time_list.append(time.time() - time_start)
                 
-        # get reference path
-        reference_path = route.reference_path
-        
-        planner = ReactivePlanner(config=config)
-        
-        # set reference path for curvilinear coordinate system
-        planner.set_reference_path(route.reference_path)
-        
-        # seed with initial state
-        cart_x.append(planner.x_0.position[0])
-        cart_y.append(planner.x_0.position[1])
-        cart_theta.append(planner.x_0.orientation)
-        cart_v.append(planner.x_0.velocity)
-        cart_a.append(planner.x_0.acceleration)
+                # append cartesian
+                cart_x.append(optimal[4].x[1])
+                cart_y.append(optimal[4].y[1])
+                cart_theta.append(optimal[4].theta[1])
+                cart_v.append(optimal[4].v[1])
+                cart_a.append(optimal[4].a[1])
 
-        lon, lat, cl_theta0 = planner._compute_initial_states(planner.x_0)
-        cl_s.append(lon[0])
-        cl_s_dot.append(lon[1])
-        cl_s_ddot.append(lon[2])
-        cl_d.append(lat[0])
-        cl_d_dot.append(lat[1])
-        cl_d_ddot.append(lat[2])
-        cl_theta.append(cl_theta0)
-
-        while not planner.goal_reached():
-            current_count = len(planner.record_state_list)
-
-            planner.set_desired_velocity(current_speed=planner.x_0.velocity)
-            
-            time_start = time.time()
-            # call plan function
-            optimal, _ = planner.plan()
-            print(_)
-            time_list.append(time.time() - time_start)
-            
-            # Populate cart_sample and cvln_sample
-            # append cartesian
-            cart_x.append(optimal[4].x[1])
-            cart_y.append(optimal[4].y[1])
-            cart_theta.append(optimal[4].theta[1])
-            cart_v.append(optimal[4].v[1])
-            cart_a.append(optimal[4].a[1])
-            # cart_ts.append(cart_state.current_time_step)
-
-            # append curvilinear
-            cl_s.append(optimal[5].s[1])
-            cl_s_dot.append(optimal[5].s_dot[1])
-            cl_s_ddot.append(optimal[5].s_ddot[1])
-            cl_d.append(optimal[5].d[1])
-            cl_d_dot.append(optimal[5].d_dot[1])
-            cl_d_ddot.append(optimal[5].d_ddot[1])
-            cl_theta.append(optimal[5].theta[1])
-            
-            # record planned state and input
-            planner.record_state_and_input(optimal[0].state_list[1])
-
-            # reset planner state for re-planning
-            planner.reset(initial_state_cart=planner.record_state_list[-1], 
-                        initial_state_curv=(optimal[2][1], optimal[3][1], 0.0), # arbitrary theta=0.0
-                        collision_checker=planner.collision_checker, 
-                        coordinate_system=planner.coordinate_system)
-            
-            # Create ego vehicle and sampled trajectory bundle for visualization
-            if config.debug.show_plots or config.debug.save_plots:
-                ego_vehicle = planner.convert_state_list_to_commonroad_object(optimal[0].state_list)
-                sampled_trajectory_bundle = None
-                if config.debug.draw_traj_set:
-                    sampled_trajectory_bundle = deepcopy(planner.stored_trajectories)
-                        
-            # visualize the current time step of the simulation
-            if config.debug.show_plots or config.debug.save_plots:
-                visualize_planner_at_timestep(scenario=config.scenario, planning_problem=config.planning_problem,
-                                                ego=ego_vehicle, traj_set=sampled_trajectory_bundle,
-                                                ref_path=planner.reference_path, timestep=current_count, config=config)
-        
-        # save sampled variables and conditiobned variables if scenario is successfully planned
-        if planner.goal_reached():
-            logger.info(f"Scenario {sc} successfully planned!")
-            # Create final cart_sample and cvln_sample
-            cart_sample = CartesianSample(
-                x=np.array(cart_x),
-                y=np.array(cart_y),
-                theta=np.array(cart_theta),
-                v=np.array(cart_v),
-                a=np.array(cart_a),
-                kappa=np.zeros_like((len(cart_x),)),
-                kappa_dot=np.zeros_like((len(cart_x),)),
-                current_time_step=int(0)
-            )
-            cvln_sample = CurviLinearSample(
-                s=np.array(cl_s),
-                ss=np.array(cl_s_dot),
-                sss=np.array(cl_s_ddot),
-                d=np.array(cl_d),
-                dd=np.array(cl_d_dot),
-                ddd=np.array(cl_d_ddot),
-                theta=np.array(cl_theta),
-                current_time_step=int(0)
-            )
-            evaluation.build_trajectory_sample(cart_sample, cvln_sample)
-            evaluation.run_evaluation(planner.record_state_list, time_list)
-            # cr_solution, feasibility_list = run_evaluation(planner.config, planner.record_state_list, planner.record_input_list)
-            # evaluation.run_evaluation(planner.record_state_list, optimal[0])
-            # print(f"Planning took {time.time() - time_start} seconds")
-            # avg_encode = sum(planner.sampling_space.cvae_helper._times) /\
-            # len(planner.sampling_space.cvae_helper._times)
-            # print(f"Average time to encode 1 scenario image is {avg_encode} seconds")
-            # print(f"Number of samples: {planner.record_state_list[-1].time_step}")
-            # save_scenario_imgs(sc[:-4], planner.record_state_list[-1].time_step)
-            # make gif
-            make_gif(config, range(0, planner.record_state_list[-1].time_step))
-
-    except Exception as e:
-        logger.info(f"Scenario {sc} failed!")
-        logger.info(f"Traceback: {traceback.format_exc()}")
-        logger.info(f"Error: {e}")
-
-else:
-    for i, sc in enumerate(os.listdir(scenarios_dir)[:100]):
-        # --- initialize accumulators ---
-        cart_x, cart_y, cart_theta, cart_v, cart_a = [], [], [], [], []
-        cl_s, cl_s_dot, cl_s_ddot, cl_d, cl_d_dot, cl_d_ddot, cl_theta = [], [], [], [], [], [], []
-        
-        if sc.endswith(".xml"):            
-            
-            time_list = []
-            config = ReactivePlannerConfiguration.load(config_file, sc)
-            config.update()
-            
-            evaluation.config = config
-            
-            logger.info(f"Planning for {sc}")
-
-            try:
-                # run route planner
-                route_planner = RoutePlanner(config.scenario, config.planning_problem)
-                route = route_planner.plan_routes().retrieve_first_route()
-                        
-                # get reference path
-                reference_path = route.reference_path
+                # append curvilinear
+                cl_s.append(optimal[5].s[1])
+                cl_s_dot.append(optimal[5].s_dot[1])
+                cl_s_ddot.append(optimal[5].s_ddot[1])
+                cl_d.append(optimal[5].d[1])
+                cl_d_dot.append(optimal[5].d_dot[1])
+                cl_d_ddot.append(optimal[5].d_ddot[1])
+                cl_theta.append(optimal[5].theta[1])
                 
-                planner = ReactivePlanner(config=config)
-
-                # set reference path for curvilinear coordinate system
-                planner.set_reference_path(route.reference_path)
+                # record planned state and input
+                planner.record_state_and_input(optimal[0].state_list[1])
                 
-                # seed with initial state
-                cart_x.append(planner.x_0.position[0])
-                cart_y.append(planner.x_0.position[1])
-                cart_theta.append(planner.x_0.orientation)
-                cart_v.append(planner.x_0.velocity)
-                cart_a.append(planner.x_0.acceleration)
-
-                lon, lat, cl_theta0 = planner._compute_initial_states(planner.x_0)
-                cl_s.append(lon[0])
-                cl_s_dot.append(lon[1])
-                cl_s_ddot.append(lon[2])
-                cl_d.append(lat[0])
-                cl_d_dot.append(lat[1])
-                cl_d_ddot.append(lat[2])
-                cl_theta.append(cl_theta0)
-
-                while not planner.goal_reached():
-                    current_count = len(planner.record_state_list)
-
-                    planner.set_desired_velocity(current_speed=planner.x_0.velocity)
-
-                    time_start = time.time()
-                    # call plan function
-                    optimal, _ = planner.plan()
-
-                    time_list.append(time.time() - time_start)
-                    
-                    # append cartesian
-                    cart_x.append(optimal[4].x[1])
-                    cart_y.append(optimal[4].y[1])
-                    cart_theta.append(optimal[4].theta[1])
-                    cart_v.append(optimal[4].v[1])
-                    cart_a.append(optimal[4].a[1])
-
-                    # append curvilinear
-                    cl_s.append(optimal[5].s[1])
-                    cl_s_dot.append(optimal[5].s_dot[1])
-                    cl_s_ddot.append(optimal[5].s_ddot[1])
-                    cl_d.append(optimal[5].d[1])
-                    cl_d_dot.append(optimal[5].d_dot[1])
-                    cl_d_ddot.append(optimal[5].d_ddot[1])
-                    cl_theta.append(optimal[5].theta[1])
-                    
-                    # record planned state and input
-                    planner.record_state_and_input(optimal[0].state_list[1])
-                    
-                    # reset planner state for re-planning
-                    planner.reset(initial_state_cart=planner.record_state_list[-1], 
-                                initial_state_curv=(optimal[2][1], optimal[3][1], 0.0), # arbitrary theta=0.0
-                                collision_checker=planner.collision_checker, 
-                                coordinate_system=planner.coordinate_system)
-                    
-                    # if i % 10 == 0:
-                    # Create ego vehicle and sampled trajectory bundle for visualization
-                    if config.debug.show_plots or config.debug.save_plots:
-                        ego_vehicle = planner.convert_state_list_to_commonroad_object(optimal[0].state_list)
-                        sampled_trajectory_bundle = None
-                        if config.debug.draw_traj_set:
-                            sampled_trajectory_bundle = deepcopy(planner.stored_trajectories)
-                    
-                    if config.debug.show_plots or config.debug.save_plots:
-                        visualize_planner_at_timestep(scenario=config.scenario, planning_problem=config.planning_problem,
-                                                        ego=ego_vehicle, traj_set=sampled_trajectory_bundle,
-                                                        ref_path=planner.reference_path, timestep=current_count, config=config)
-                    
+                # reset planner state for re-planning
+                planner.reset(initial_state_cart=planner.record_state_list[-1], 
+                            initial_state_curv=(optimal[2][1], optimal[3][1], 0.0), # arbitrary theta=0.0
+                            collision_checker=planner.collision_checker, 
+                            coordinate_system=planner.coordinate_system)
                 
-                # save sampled variables and conditiobned variables if scenario is successfully planned
-                if planner.goal_reached():
-                    # Create final cart_sample and cvln_sample
-                    cart_sample = CartesianSample(
-                        x=np.array(cart_x),
-                        y=np.array(cart_y),
-                        theta=np.array(cart_theta),
-                        v=np.array(cart_v),
-                        a=np.array(cart_a),
-                        kappa=np.zeros_like((len(cart_x),)),
-                        kappa_dot=np.zeros_like((len(cart_x),)),
-                        current_time_step=int(0)
-                    )
-                    cvln_sample = CurviLinearSample(
-                        s=np.array(cl_s),
-                        ss=np.array(cl_s_dot),
-                        sss=np.array(cl_s_ddot),
-                        d=np.array(cl_d),
-                        dd=np.array(cl_d_dot),
-                        ddd=np.array(cl_d_ddot),
-                        theta=np.array(cl_theta),
-                        current_time_step=int(0)
-                    )
-                    # print(colored(f"Scenario {sc} successfully planned!", "green"))
-                    logger.info(f"Scenario {sc} successfully planned!")
-                    
+                # Create ego vehicle and sampled trajectory bundle for visualization
+                if config.debug.show_plots or config.debug.save_plots:
+                    ego_vehicle = planner.convert_state_list_to_commonroad_object(optimal[0].state_list)
+                    sampled_trajectory_bundle = None
+                    if config.debug.draw_traj_set:
+                        sampled_trajectory_bundle = deepcopy(planner.stored_trajectories)
+                
+                if config.debug.show_plots or config.debug.save_plots:
+                    visualize_planner_at_timestep(scenario=config.scenario, planning_problem=config.planning_problem,
+                                                    ego=ego_vehicle, traj_set=sampled_trajectory_bundle,
+                                                    ref_path=planner.reference_path, timestep=current_count, config=config)
+                
+            
+            # save sampled variables and conditiobned variables if scenario is successfully planned
+            if planner.goal_reached():
+                # Create final cart_sample and cvln_sample
+                cart_sample = CartesianSample(
+                    x=np.array(cart_x),
+                    y=np.array(cart_y),
+                    theta=np.array(cart_theta),
+                    v=np.array(cart_v),
+                    a=np.array(cart_a),
+                    kappa=np.zeros_like((len(cart_x),)),
+                    kappa_dot=np.zeros_like((len(cart_x),)),
+                    current_time_step=int(0)
+                )
+                cvln_sample = CurviLinearSample(
+                    s=np.array(cl_s),
+                    ss=np.array(cl_s_dot),
+                    sss=np.array(cl_s_ddot),
+                    d=np.array(cl_d),
+                    dd=np.array(cl_d_dot),
+                    ddd=np.array(cl_d_ddot),
+                    theta=np.array(cl_theta),
+                    current_time_step=int(0)
+                )
+                logger.info(f"Scenario {sc} successfully planned!")
+                
+                # run scenario evaluation
+                if EVAL:
                     evaluation.build_trajectory_sample(cart_sample, cvln_sample)
                     evaluation.run_evaluation(planner.record_state_list, time_list, int(planner.num_sampled_trajectories))
                     
-                    # print(f"Number of samples: {planner.record_state_list[-1].time_step}")
-                    # save_scenario_imgs(sc[:-4], planner.record_state_list[-1].time_step)
-                    # make gif
-                    # if i % 10 == 0:
                     make_gif(config, range(0, planner.record_state_list[-1].time_step))
-                    
-            except Exception as e:
-                # print(colored(f"Scenario {sc} failed!", "red"))
-                logger.info(f"Scenario {sc} failed!")
-                logger.info(f"Error: {e}")
-                logger.info("Traceback:")
-                logger.info(traceback.format_exc())
-                continue
+                
+        except Exception as e:
+            logger.info(f"Scenario {sc} failed!")
+            logger.info(f"Error: {e}")
+            logger.info("Traceback:")
+            logger.info(traceback.format_exc())
+            continue
 
-
-evaluation.save_evaluation_results()
+# save evaluation results to csv
+if EVAL:
+    evaluation.save_evaluation_results()
