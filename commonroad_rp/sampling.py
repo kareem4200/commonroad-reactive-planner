@@ -199,7 +199,7 @@ class FixedIntervalSampling(SamplingSpace):
                                    c_dim=self.config_sampling.c_dim, 
                                    z_dim=self.config_sampling.z_dim)
             self.cvae_model.load_state_dict(torch.load(
-                self.config_sampling.cvae_model_path))
+                self.config_sampling.cvae_model_path, map_location=torch.device(self.config_sampling.device)))
             self.cvae_helper = CVAEHelper(config.scenario, config.planning_problem)
 
         # timestep and horizon
