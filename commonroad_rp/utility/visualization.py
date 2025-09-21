@@ -9,6 +9,7 @@ __status__ = "Beta"
 # standard imports
 from typing import List, Union, Optional
 import os
+import shutil
 import logging
 
 # third party
@@ -273,3 +274,6 @@ def make_gif(config: ReactivePlannerConfiguration, time_steps: Union[range, List
 
         imageio.mimsave(os.path.join(config.general.path_output, str(scenario_id) + ".gif"),
                         images, duration=duration)
+        
+        # Delete images after GIF creation
+        shutil.rmtree(path_images)
