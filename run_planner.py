@@ -33,32 +33,34 @@ import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--scenario", type=str, default="", help="scenario name to run on 1 scenario only")
-
+parser.add_argument("--cvae", action=argparse.BooleanOptionalAction, help="--cvae or --no-cvae to enable/disable CVAE sampling")
 args = parser.parse_args()
+
 # *************************************
 # Set Configurations
 # *************************************
-config_file = "../cvae/config/reactive_planner_config.yaml"
+if args.cvae:
+    config_file = "../cvae/config/reactive_planner_config_cvae.yaml"
+else:
+    config_file = "../cvae/config/reactive_planner_config_rp.yaml"
 # scenarios_dir = "../cvae/scenarios/rp_success"
 scenarios_dir = "../cvae/all_scenarios"
 
 # initialize and get logger
 logger = initialize_logger(ReactivePlannerConfiguration())
 
-EVAL = True
-
 if args.scenario:
     scenarios = [args.scenario]
 else:
     scenarios = os.listdir(scenarios_dir)
-    
-# *************************************
+
+EVAL = True
 # Initialize Planner
 # *************************************
 
 evaluation = Evaluation()
 
-for i, sc in enumerate(scenarios[:100]):
+for i, sc in enumerate(scenarios):
     # --- initialize accumulators ---
     cart_x, cart_y, cart_theta, cart_v, cart_a = [], [], [], [], []
     cl_s, cl_s_dot, cl_s_ddot, cl_d, cl_d_dot, cl_d_ddot, cl_theta = [], [], [], [], [], [], []
@@ -138,17 +140,18 @@ for i, sc in enumerate(scenarios[:100]):
                             collision_checker=planner.collision_checker, 
                             coordinate_system=planner.coordinate_system)
                 
-                # Create ego vehicle and sampled trajectory bundle for visualization
-                if config.debug.show_plots or config.debug.save_plots:
-                    ego_vehicle = planner.convert_state_list_to_commonroad_object(optimal[0].state_list)
-                    sampled_trajectory_bundle = None
-                    if config.debug.draw_traj_set:
-                        sampled_trajectory_bundle = deepcopy(planner.stored_trajectories)
-                
-                if config.debug.show_plots or config.debug.save_plots:
-                    visualize_planner_at_timestep(scenario=config.scenario, planning_problem=config.planning_problem,
-                                                    ego=ego_vehicle, traj_set=sampled_trajectory_bundle,
-                                                    ref_path=planner.reference_path, timestep=current_count, config=config)
+                if EVAL:
+                    # Create ego vehicle and sampled trajectory bundle for visualization
+                    if config.debug.show_plots or config.debug.save_plots:
+                        ego_vehicle = planner.convert_state_list_to_commonroad_object(optimal[0].state_list)
+                        sampled_trajectory_bundle = None
+                        if config.debug.draw_traj_set:
+                            sampled_trajectory_bundle = deepcopy(planner.stored_trajectories)
+                    
+                    if config.debug.show_plots or config.debug.save_plots:
+                        visualize_planner_at_timestep(scenario=config.scenario, planning_problem=config.planning_problem,
+                                                        ego=ego_vehicle, traj_set=sampled_trajectory_bundle,
+                                                        ref_path=planner.reference_path, timestep=current_count, config=config)
                 
             
             # save sampled variables and conditiobned variables if scenario is successfully planned
@@ -178,8 +181,13 @@ for i, sc in enumerate(scenarios[:100]):
                 
                 # run scenario evaluation
                 if EVAL:
+                    if config.sampling.cvae_sampling:
+                        cvae_time_list = planner.sampling_space.cvae_inference_time_list
                     evaluation.build_trajectory_sample(cart_sample, cvln_sample)
-                    evaluation.run_evaluation(planner.record_state_list, time_list, int(planner.num_sampled_trajectories))
+                    evaluation.run_evaluation(planner.record_state_list,
+                                              time_list,
+                                              int(planner.num_sampled_trajectories),
+                                              cvae_time_list if config.sampling.cvae_sampling else None,)
                     
                     make_gif(config, range(0, planner.record_state_list[-1].time_step))
                 
