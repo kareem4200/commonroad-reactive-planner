@@ -18,6 +18,7 @@ import torch
 from cvae.model.model import CVAE, cvae_loss_function
 from commonroad_rp.cvae_helper import CVAEHelper
 
+import time
 
 try:
     from commonroad_reach.data_structure.reach.driving_corridor import DrivingCorridor
@@ -188,7 +189,7 @@ class FixedIntervalSampling(SamplingSpace):
     def __init__(self, config: ReactivePlannerConfiguration):
         num_sampling_levels = config.sampling.num_sampling_levels
         super(FixedIntervalSampling, self).__init__(num_sampling_levels)
-        
+        self.cvae_inference_time_list = []
         self.config_sampling = config.sampling
         
         self.use_cvae = config.sampling.cvae_sampling
@@ -265,6 +266,7 @@ class FixedIntervalSampling(SamplingSpace):
         else:
             # === CVAE-based sampling ===
             with torch.inference_mode():
+                time_s = time.time()
                 cvae_condition = self.cvae_helper._build_cvae_condition(
                     time_step=time_step, 
                     pre_encoded=self.pre_encoded_imgs)
@@ -275,6 +277,7 @@ class FixedIntervalSampling(SamplingSpace):
                 z = z.to(torch.float32)
                 c = torch.tensor(cvae_condition, dtype=torch.float32).unsqueeze(0).repeat(self.cvae_num_samples, 1)
                 x_sampled = self.cvae_model.decode(z, c).numpy()
+                self.cvae_inference_time_list.append(time.time() - time_s)
 
             for sample in x_sampled:
                 t, d, lon_sample = sample

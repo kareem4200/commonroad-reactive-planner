@@ -28,14 +28,6 @@ class Evaluation:
         self.records = []
         
         self.logger = logging.getLogger(__name__)
-        # self.eval_df = pd.DataFrame(columns=[
-        #     "scenario_id",
-        #     "valid_solution",
-        #     "avg_planning_time",
-        #     "max_lateral_deviation",
-        #     "avg_lateral_deviation",
-        #     "total_cost"
-        # ])
         
     @property
     def config(self) -> ReactivePlannerConfiguration:
@@ -57,7 +49,8 @@ class Evaluation:
     def run_evaluation(self, 
                        state_list: List[ReactivePlannerState], 
                        planning_times: List[float],
-                       num_samples: int):
+                       num_samples: int,
+                       cvae_inference_times: List[float] = None):
         
         ego_solution_trajectory = self.create_full_solution_trajectory(state_list)
 
@@ -81,7 +74,8 @@ class Evaluation:
             "max_planning_time": max_planning_time,
             "avg_planning_time": avg_planning_time,
             "std_planning_time": std_planning_time,
-            "num_sampled_trajectories": num_samples
+            "num_sampled_trajectories": num_samples,
+            "cvae_avg_inference_time": np.mean(cvae_inference_times) if cvae_inference_times is not None else None,
         })
     
     

@@ -23,7 +23,7 @@ class CVAEHelper:
         self._scenario = scenario
         self._planning_problem = planning_problem
         
-        self.encoded_imgs_df = pd.read_parquet("../cvae/data/data_extended/encoded_imgs.parquet")
+        self.encoded_imgs_df = pd.read_parquet("../cvae/data/data_extended/all_encoded_imgs.parquet")
         self.scenario_imgs = self.encoded_imgs_df[self.encoded_imgs_df['scenario'] == str(scenario.scenario_id).strip()].copy()
         self.scenario_imgs.drop(columns=['scenario'], inplace=True)
         # self.encoded_imgs_df.reset_index(drop=True, inplace=True)
