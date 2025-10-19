@@ -167,6 +167,8 @@ class SamplingConfiguration(BaseConfiguration):
     cvae_sampling: bool = False
     num_samples: int = 1
     cvae_model_path: str = ""
+    pre_encoded_imgs: bool = False
+    device: str = "cpu"  # "cuda" or "cpu"
     z_dim: int = 32  # latent dimension, should match the CVAE model used for training
     c_dim: int = 6 + 512  # conditioned dimension, should match the CVAE model used for training
 
