@@ -30,15 +30,23 @@ from commonroad_rp.utility.logger import initialize_logger
 import argparse
 import time
 import numpy as np
+import pandas as pd
+from pathlib import Path
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--scenario", type=str, default="", help="scenario name to run on 1 scenario only")
 parser.add_argument("--cvae", action=argparse.BooleanOptionalAction, help="--cvae or --no-cvae to enable/disable CVAE sampling")
+parser.add_argument("--mode", type=str, default="train", help="mode: train, val, test")
 args = parser.parse_args()
 
 # *************************************
 # Set Configurations
 # *************************************
+
+mode_dir = Path("../cvae/data/data_v2/") / args.mode
+df = pd.read_parquet(mode_dir / f"c_{args.mode}.parquet")
+scenarios_in_mode = df["scenario"].unique().tolist()
+
 if args.cvae:
     config_file = "../cvae/config/reactive_planner_config_cvae.yaml"
 else:
@@ -65,7 +73,9 @@ for i, sc in enumerate(scenarios):
     cart_x, cart_y, cart_theta, cart_v, cart_a = [], [], [], [], []
     cl_s, cl_s_dot, cl_s_ddot, cl_d, cl_d_dot, cl_d_ddot, cl_theta = [], [], [], [], [], [], []
     
-    if sc.endswith(".xml"):            
+    scenario_name = sc[:-4]
+    
+    if sc.endswith(".xml") and scenario_name in scenarios_in_mode:            
         
         time_list = []
         config = ReactivePlannerConfiguration.load(config_file, sc)
