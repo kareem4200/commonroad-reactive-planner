@@ -118,6 +118,9 @@ class ReactivePlanner(object):
         # keep track of number of trajectories sampled
         self._num_sampled_trajectories = 0
         
+        # store the last trajectory for cvae condition
+        self.last_trajectory = None
+        
     @property
     def num_sampled_trajectories(self) -> int:
         """Number of sampled trajectories in the last planning run"""
@@ -451,9 +454,13 @@ class ReactivePlanner(object):
         logger.info("===== Sampling trajectories ... =====")
         logger.info(f"Sampling density {samp_level + 1} of {self.sampling_level}")
 
-        trajectories, samples = self.sampling_space.generate_trajectories_at_level(samp_level, x_0_lon, x_0_lat,
-                                                                                    self.config.sampling.longitudinal_mode,
-                                                                                    self._low_vel_mode, self.x_0.time_step)
+        trajectories, samples = self.sampling_space.generate_trajectories_at_level(samp_level, 
+                                                                                   x_0_lon,
+                                                                                   x_0_lat,
+                                                                                   self.config.sampling.longitudinal_mode,
+                                                                                   self._low_vel_mode,
+                                                                                   self.x_0.time_step,
+                                                                                   self.last_trajectory)
         # save trajectories and samples in a dictionary
         self.trajectory_samples_dict = dict(zip(trajectories, samples))
 
@@ -734,6 +741,9 @@ class ReactivePlanner(object):
 
         if planning_result is None:
             logger.warning(f"Planner failed to find an optimal trajectory with given sampling configuration!")
+            
+        # store last trajectory for cvae
+        self.last_trajectory = planning_result[0] if planning_result is not None else None
 
         return planning_result, samples
 
