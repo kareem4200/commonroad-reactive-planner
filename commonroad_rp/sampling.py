@@ -18,6 +18,7 @@ import torch
 from cvae.model.model import CVAE, cvae_loss_function
 from commonroad_rp.cvae_helper import CVAEHelper
 
+from cvae.model.normalizer import Normalizer
 import time
 
 try:
@@ -198,10 +199,15 @@ class FixedIntervalSampling(SamplingSpace):
             self.pre_encoded_imgs = self.config_sampling.pre_encoded_imgs
             self.cvae_model = CVAE(X_dim=3, 
                                    c_dim=self.config_sampling.c_dim, 
-                                   z_dim=self.config_sampling.z_dim)
+                                   z_dim=self.config_sampling.z_dim,
+                                   h_Q_dim=1024,
+                                   h_P_dim=1024)
             self.cvae_model.load_state_dict(torch.load(
                 self.config_sampling.cvae_model_path, map_location=torch.device(self.config_sampling.device)))
-            self.cvae_helper = CVAEHelper(config.scenario, config.planning_problem)
+            self.cvae_model = self.cvae_model.to(self.config_sampling.device)
+            self.cvae_model.eval()
+            self.cvae_helper = CVAEHelper(config.scenario, config.planning_problem, "train")
+            self.normalizer = Normalizer.load("../cvae/model/weights/")
 
         # timestep and horizon
         self.dt = config.planning.dt
@@ -217,7 +223,7 @@ class FixedIntervalSampling(SamplingSpace):
         self.samples_s = PositionSampling(self.config_sampling.s_min, self.config_sampling.s_max, num_sampling_levels)
 
     def generate_trajectories_at_level(self, level_sampling: int, x_0_lon: np.ndarray, x_0_lat: np.ndarray,
-                                       longitudinal_mode: str, low_vel_mode: bool, time_step: int) \
+                                       longitudinal_mode: str, low_vel_mode: bool, time_step: int, trajectory = None) \
             -> List[TrajectorySample]:
         """
         Implements trajectory generation method for sampling trajectories in fixed intervals in t, v, d  or s domain
@@ -267,16 +273,23 @@ class FixedIntervalSampling(SamplingSpace):
             # === CVAE-based sampling ===
             with torch.inference_mode():
                 time_s = time.time()
-                cvae_condition = self.cvae_helper._build_cvae_condition(
+                cvae_condition, img = self.cvae_helper._build_cvae_condition(
                     time_step=time_step, 
-                    pre_encoded=self.pre_encoded_imgs)
-
+                    pre_encoded=False)
+                # cvae_condition = self.normalizer.transform_conditions(cvae_condition.reshape(1, -1))
                 z = torch.randn(self.cvae_num_samples, self.config_sampling.z_dim) # latent dimension is like training
                 # c = cvae_condition.repeat(self.cvae_num_samples, 0)
 
-                z = z.to(torch.float32)
-                c = torch.tensor(cvae_condition, dtype=torch.float32).unsqueeze(0).repeat(self.cvae_num_samples, 1)
-                x_sampled = self.cvae_model.decode(z, c).numpy()
+                z = z.to(torch.float32).to(self.config_sampling.device)
+                c = torch.tensor(cvae_condition, dtype=torch.float32).repeat(self.cvae_num_samples, 1).to(self.config_sampling.device)
+                # print(f"C shape: {c.shape}, z shape: {z.shape}")
+                img_features = self.cvae_model.cnn_extractor(img)
+                img_features = img_features.repeat(self.cvae_num_samples, 1)
+                # print(f"img_features shape: {img_features.shape}")
+                x_sampled = self.cvae_model.decode(z, c, img_features).cpu().numpy()
+                # print(f"x_sampled before inverse: {x_sampled}")
+                # x_sampled = self.normalizer.inverse_transform_targets(x_sampled)
+                # print(f"x_sampled after inverse: {x_sampled}")
                 self.cvae_inference_time_list.append(time.time() - time_s)
 
             for sample in x_sampled:
