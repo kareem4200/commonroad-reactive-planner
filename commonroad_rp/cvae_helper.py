@@ -11,32 +11,46 @@ import commonroad
 from commonroad.visualization.mp_renderer import MPRenderer
 
 from cvae.model.model import CVAE, cvae_loss_function
+from cvae.model.mask_background import MaskBackground
 
 import time
 
 class CVAEHelper:
-    def __init__(self, scenario, planning_problem):
+    def __init__(self, scenario, planning_problem, mode):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        resnet18 = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
-        self.resnet_fe = torch.nn.Sequential(*list(resnet18.children())[:-1]).to(self.device)
+        # resnet18 = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+        # self.resnet_fe = torch.nn.Sequential(*list(resnet18.children())[:-1]).to(self.device)
         
         self._scenario = scenario
         self._planning_problem = planning_problem
         
-        self.encoded_imgs_df = pd.read_parquet("../cvae/data/data_extended/all_encoded_imgs.parquet")
-        self.scenario_imgs = self.encoded_imgs_df[self.encoded_imgs_df['scenario'] == str(scenario.scenario_id).strip()].copy()
-        self.scenario_imgs.drop(columns=['scenario'], inplace=True)
-        # self.encoded_imgs_df.reset_index(drop=True, inplace=True)
-        self.scenario_imgs.set_index('time_step', inplace=True)
-        self.scenario_imgs.sort_index(inplace=True)
+        # self.encoded_imgs_df = pd.read_parquet("../cvae/data/data_extended/all_encoded_imgs.parquet")
+        # self.scenario_imgs = self.encoded_imgs_df[self.encoded_imgs_df['scenario'] == str(scenario.scenario_id).strip()].copy()
+        # self.scenario_imgs.drop(columns=['scenario'], inplace=True)
+        # # self.encoded_imgs_df.reset_index(drop=True, inplace=True)
+        # self.scenario_imgs.set_index('time_step', inplace=True)
+        # self.scenario_imgs.sort_index(inplace=True)
         # print(self.scenario_imgs)
         
+        if mode == "train":
+            path = "../cvae/data/data_v2/train/imgs/"
+        elif mode == "val":
+            path = "../cvae/data/data_v2/val/imgs/"
+        else:
+            path = "../cvae/data/data_v2/test/imgs/"
+        
+        scenario_id = str(scenario.scenario_id)
+        # x = pd.read_parquet(path + scenario_id)
+        # self.no_time_steps = x.loc[x["scenario"] == str(scenario.scenario_id), "time_step"].max()
+        # self.ego_id = x.loc[x["scenario"] == str(scenario.scenario_id) + ".xml", "ego_id"].iloc[0]
+        
         self._transform = transforms.Compose([
-                transforms.Resize((224, 224)),
+                transforms.Resize((128, 128)),
                 transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                        std =[0.229, 0.224, 0.225])
+                MaskBackground(),
         ])
+        
+        self.scenario_imgs = self.read_scenario_images(path + scenario_id)
         
         self._times = []
 
@@ -53,6 +67,7 @@ class CVAEHelper:
         #       commonroad.geometry.shape.Rectangle):
         #       goal_pos = self._planning_problem.goal.state_list[0].position.center
         
+        # SHIT: this is not updated to ego state each time step
         condition = np.array([
                 self._planning_problem.initial_state.position[0],
                 self._planning_problem.initial_state.position[1],
@@ -66,11 +81,12 @@ class CVAEHelper:
             feature_vector = self.read_feature_vector(time_step)
             condition = np.append(condition, feature_vector)
         else:
-            feature_vector = self.encode_scenario_image(time_step)
-            condition = np.append(condition, feature_vector)
-            self._times.append(time.time() - start)
+            # feature_vector = self.encode_scenario_image(time_step)
+            # condition = np.append(condition, feature_vector)
+            # self._times.append(time.time() - start)
+            img = self.scenario_imgs[time_step]
         
-        return condition
+        return condition, img
 
     def encode_scenario_image(self, time_step):
         """
@@ -112,3 +128,15 @@ class CVAEHelper:
         feature_vector = self.scenario_imgs.loc[time_step].values
         # print(f"Feature vector shape: {feature_vector.shape}, {feature_vector}")
         return feature_vector
+    
+    def read_scenario_images(self, path):
+        imgs_path = os.listdir(path)
+        imgs = []
+        for img in imgs_path:
+            with open(os.path.join(path, img), 'rb') as f:
+                img = Image.open(f).convert('RGB')
+                img_tensor = self._transform(img).unsqueeze(0)
+                # img_tensor = img_tensor.to(self.device)
+                imgs.append(img_tensor)
+                
+        return imgs
