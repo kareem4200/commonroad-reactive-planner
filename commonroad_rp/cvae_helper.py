@@ -24,6 +24,10 @@ class CVAEHelper:
         self._scenario = scenario
         self._planning_problem = planning_problem
         
+        scenario_id = str(scenario.scenario_id).strip()
+        
+        self.conditions = pd.read_parquet("../cvae/data/data_v2/conditioned_vars.parquet")
+        self.conditions = self.conditions.loc[self.conditions["scenario"] == scenario_id].copy()
         # self.encoded_imgs_df = pd.read_parquet("../cvae/data/data_extended/all_encoded_imgs.parquet")
         # self.scenario_imgs = self.encoded_imgs_df[self.encoded_imgs_df['scenario'] == str(scenario.scenario_id).strip()].copy()
         # self.scenario_imgs.drop(columns=['scenario'], inplace=True)
@@ -39,7 +43,6 @@ class CVAEHelper:
         else:
             path = "../cvae/data/data_v2/test/imgs/"
         
-        scenario_id = str(scenario.scenario_id)
         # x = pd.read_parquet(path + scenario_id)
         # self.no_time_steps = x.loc[x["scenario"] == str(scenario.scenario_id), "time_step"].max()
         # self.ego_id = x.loc[x["scenario"] == str(scenario.scenario_id) + ".xml", "ego_id"].iloc[0]
@@ -66,16 +69,19 @@ class CVAEHelper:
         # elif isinstance(self._planning_problem.goal.state_list[0].position, \
         #       commonroad.geometry.shape.Rectangle):
         #       goal_pos = self._planning_problem.goal.state_list[0].position.center
-        
+        # print(f"Time step: {time_step}")
+        # print(self.conditions.loc[self.conditions["time_step"] == time_step])
+        condition = self.conditions.loc[self.conditions["time_step"] == time_step].iloc[0, 2:].to_numpy(dtype=np.float32)
+        # print(condition.shape, condition)
         # SHIT: this is not updated to ego state each time step
-        condition = np.array([
-                self._planning_problem.initial_state.position[0],
-                self._planning_problem.initial_state.position[1],
-                self._planning_problem.initial_state.orientation,
-                self._planning_problem.initial_state.velocity,
-                self._planning_problem.initial_state.acceleration,
-                self._planning_problem.initial_state.yaw_rate,
-        ])
+        # condition = np.array([
+        #         self._planning_problem.initial_state.position[0],
+        #         self._planning_problem.initial_state.position[1],
+        #         self._planning_problem.initial_state.orientation,
+        #         self._planning_problem.initial_state.velocity,
+        #         self._planning_problem.initial_state.acceleration,
+        #         self._planning_problem.initial_state.yaw_rate,
+        # ])
         
         if pre_encoded:
             feature_vector = self.read_feature_vector(time_step)
