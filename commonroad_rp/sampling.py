@@ -15,6 +15,7 @@ from commonroad_rp.polynomial_trajectory import QuinticTrajectory, QuarticTrajec
 from commonroad_rp.trajectories import TrajectorySample
 
 import torch
+torch.manual_seed(0)
 from cvae.model.model import CVAE, cvae_loss_function
 from commonroad_rp.cvae_helper import CVAEHelper
 
@@ -200,14 +201,14 @@ class FixedIntervalSampling(SamplingSpace):
             self.cvae_model = CVAE(X_dim=3, 
                                    c_dim=self.config_sampling.c_dim, 
                                    z_dim=self.config_sampling.z_dim,
-                                   h_Q_dim=1024,
-                                   h_P_dim=1024)
+                                   h_Q_dim=512,
+                                   h_P_dim=512)
             self.cvae_model.load_state_dict(torch.load(
                 self.config_sampling.cvae_model_path, map_location=torch.device(self.config_sampling.device)))
             self.cvae_model = self.cvae_model.to(self.config_sampling.device)
             self.cvae_model.eval()
-            self.cvae_helper = CVAEHelper(config.scenario, config.planning_problem, "train")
-            self.normalizer = Normalizer.load("../cvae/model/weights/")
+            self.cvae_helper = CVAEHelper(config.scenario, config.planning_problem, "test")
+            # self.normalizer = Normalizer.load("../cvae/model/weights/")
 
         # timestep and horizon
         self.dt = config.planning.dt
