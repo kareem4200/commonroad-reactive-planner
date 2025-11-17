@@ -50,7 +50,7 @@ class CVAEHelper:
         self._transform = transforms.Compose([
                 transforms.Resize((128, 128)),
                 transforms.ToTensor(),
-                MaskBackground(),
+                # MaskBackground(),
         ])
         
         self.scenario_imgs = self.read_scenario_images(path + scenario_id)
