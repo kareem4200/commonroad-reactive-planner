@@ -62,7 +62,7 @@ if args.scenario:
 else:
     scenarios = os.listdir(scenarios_dir)
 
-EVAL = True
+EVAL = False
 # Initialize Planner
 # *************************************
 
