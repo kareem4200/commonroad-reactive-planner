@@ -11,7 +11,7 @@ from commonroad_dc.feasibility.solution_checker import solution_feasible, starts
 
 from commonroad_rp.utility.config import ReactivePlannerConfiguration
 from commonroad_rp.reactive_planner import ReactivePlannerState
-from commonroad_rp.cost_function import DefaultCostFunction
+from commonroad_rp.cost_function import DefaultCostFunction, WX1CostFunction
 from commonroad_rp.trajectories import TrajectorySample, CartesianSample, CurviLinearSample
 from commonroad_rp.polynomial_trajectory import QuinticTrajectory, QuarticTrajectory
 
@@ -24,7 +24,7 @@ class Evaluation:
     def __init__(self):
         self._config: ReactivePlannerConfiguration = None
         self._trajectory_sample: TrajectorySample = None
-        self.cost_function = DefaultCostFunction()
+        self.cost_function = WX1CostFunction()
         self.records = []
         
         self.logger = logging.getLogger(__name__)
@@ -56,7 +56,12 @@ class Evaluation:
 
         solution = self.create_planning_problem_solution(ego_solution_trajectory)
         valid, _ = self.valid_solution(solution)
-        cost = self.cost_function.evaluate(trajectory=self.trajectory_sample)
+        goal = self._config.planning_problem.goal
+        if goal.state_list[0].has_value("velocity"):
+            max_speed = goal.state_list[0].velocity
+        else:
+            max_speed = 13.5
+        cost = self.cost_function.evaluate(trajectory=self.trajectory_sample, target_speed=max_speed)
         
         max_d_dev, avg_d_dev, std_d_dev = self.evaluate_d_deviation(trajectory=self.trajectory_sample)
         

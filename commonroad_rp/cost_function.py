@@ -48,7 +48,7 @@ class DefaultCostFunction(CostFunction):
         # weights
         self.w_a = 5    # acceleration weight
 
-    def evaluate(self, trajectory: commonroad_rp.trajectories.TrajectorySample):
+    def evaluate(self, trajectory: commonroad_rp.trajectories.TrajectorySample, target_speed: Optional[float] = None):
         costs = 0.0
         # acceleration costs
         costs += np.sum((self.w_a * trajectory.cartesian.a) ** 2)
@@ -90,3 +90,44 @@ class DefaultCostFunctionFailSafe(CostFunction):
                 5 * (np.abs(trajectory.curvilinear.theta[-1]))) ** 2
 
         return costs
+
+class WX1CostFunction(CostFunction):
+    def __init__(self):
+        super().__init__()
+        # weights
+        self.w_T = 10
+        self.w_V = 1
+        self.w_A = 0.1
+        self.w_J = 0.0
+        self.w_D = 0.1
+        self.w_LC = 10
+
+    def cost_time(self, traj: commonroad_rp.trajectories.TrajectorySample) -> float:
+        return self.w_T - len(traj.cartesian.x) * traj.dt
+
+    def cost_velocity_offset(self, vels: list, v_target: float) -> float:
+        return self.w_V * np.sum(np.power(np.subtract(vels, v_target), 2))
+
+    def cost_acceleration(self, accels: list) -> float:
+        return self.w_A * np.sum(np.power(accels, 2))
+
+    def cost_jerk(self, jerks: list) -> float:
+        return self.w_J * np.sum(np.power(jerks, 2))
+
+    def cost_lane_center_offset(self, offsets: list) -> float:
+        return self.w_LC * np.sum(np.power(offsets, 2))
+
+    def cost_total(self, traj: commonroad_rp.trajectories.TrajectorySample, target_speed: float) -> float:
+        cost_time = self.cost_time(traj)
+        cost_speed = self.cost_velocity_offset(traj.curvilinear.s_dot, target_speed)
+        cost_accel = self.cost_acceleration(traj.curvilinear.s_ddot) + self.cost_acceleration(traj.curvilinear.d_ddot)
+        # cost_jerk = self.cost_jerk(traj.curvilinear.s_ddd) + self.cost_jerk(traj.curvilinear.d_ddd)
+        cost_offset = self.cost_lane_center_offset(traj.curvilinear.d)
+        
+        cost_total = (cost_time + cost_speed + cost_accel + cost_offset) / len(traj.cartesian.x)
+        return cost_total
+
+    def evaluate(self, trajectory: commonroad_rp.trajectories.TrajectorySample, target_speed: Optional[float] = None) -> float:
+        if target_speed is None:
+            raise ValueError("Target speed must be provided for WX1CostFunction.")
+        return self.cost_total(trajectory, target_speed)
