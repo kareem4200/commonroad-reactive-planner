@@ -58,7 +58,7 @@ class Evaluation:
         valid, _ = self.valid_solution(solution)
         goal = self._config.planning_problem.goal
         if goal.state_list[0].has_value("velocity"):
-            max_speed = goal.state_list[0].velocity
+            max_speed = goal.state_list[0].velocity.end
         else:
             max_speed = 13.5
         cost = self.cost_function.evaluate(trajectory=self.trajectory_sample, target_speed=max_speed)
@@ -70,15 +70,16 @@ class Evaluation:
         std_planning_time = np.std(planning_times)
         
         self.records.append({
-            "scenario": str(self._config.scenario.scenario_id).strip(),
-            "valid_solution": valid,
+            "scenario_name": str(self._config.scenario.scenario_id).strip(),
+            "n_time_steps": int(len(planning_times)),
+            # "valid_solution": valid,
             "total_cost": cost,
             "max_lateral_deviation": max_d_dev,
             "avg_lateral_deviation": avg_d_dev,
             "std_lateral_deviation": std_d_dev,
-            "max_planning_time": max_planning_time,
-            "avg_planning_time": avg_planning_time,
-            "std_planning_time": std_planning_time,
+            "planning_time_max": max_planning_time,
+            "planning_time_avg": avg_planning_time,
+            "planning_time_std": std_planning_time,
             "num_sampled_trajectories": num_samples,
             "cvae_avg_inference_time": np.mean(cvae_inference_times) if cvae_inference_times is not None else None,
         })
