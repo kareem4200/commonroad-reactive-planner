@@ -207,7 +207,7 @@ class FixedIntervalSampling(SamplingSpace):
                 self.config_sampling.cvae_model_path, map_location=torch.device(self.config_sampling.device)))
             self.cvae_model = self.cvae_model.to(self.config_sampling.device)
             self.cvae_model.eval()
-            self.cvae_helper = CVAEHelper(config.scenario, config.planning_problem, "test")
+            self.cvae_helper = CVAEHelper(config.scenario, config.planning_problem, self.config_sampling.mode)
             # self.normalizer = Normalizer.load("../cvae/model/weights/")
 
         # timestep and horizon

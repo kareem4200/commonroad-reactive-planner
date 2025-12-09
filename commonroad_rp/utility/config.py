@@ -171,6 +171,7 @@ class SamplingConfiguration(BaseConfiguration):
     device: str = "cpu"  # "cpu" or "cuda"
     z_dim: int = 32  # latent dimension, should match the CVAE model used for training
     c_dim: int = 6 + 512  # conditioned dimension, should match the CVAE model used for training
+    mode: str = "all"  # "train", "val", "test", or "all"
 
 
 @dataclass

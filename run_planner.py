@@ -36,38 +36,47 @@ from pathlib import Path
 parser = argparse.ArgumentParser()
 parser.add_argument("--scenario", type=str, default="", help="scenario name to run on 1 scenario only")
 parser.add_argument("--cvae", action=argparse.BooleanOptionalAction, help="--cvae or --no-cvae to enable/disable CVAE sampling")
-parser.add_argument("--mode", type=str, default="train", help="mode: train, val, test")
+parser.add_argument("--mode", type=str, default="all", help="mode: all, train, val, test")
 args = parser.parse_args()
 
 # *************************************
 # Set Configurations
 # *************************************
 
-mode_dir = Path("../cvae/data/data_v2/") / args.mode
-df = pd.read_parquet(mode_dir / f"c_{args.mode}.parquet")
-scenarios_in_mode = df["scenario"].unique().tolist()
+# mode_dir = Path("../cvae/data/data_v2/") / args.mode
+# df = pd.read_parquet(mode_dir / f"c_{args.mode}.parquet")
+# scenarios_in_mode = df["scenario"].unique().tolist()
 
 if args.cvae:
     config_file = "../cvae/config/reactive_planner_config_cvae.yaml"
 else:
     config_file = "../cvae/config/reactive_planner_config_rp.yaml"
+# print(config_file)
 # scenarios_dir = "../cvae/scenarios/rp_success"
-scenarios_dir = "../cvae/all_scenarios"
+scenarios_dir = "../cvae/all_scenarios/planned_scenarios"
 
 # initialize and get logger
 logger = initialize_logger(ReactivePlannerConfiguration())
 
+if args.mode == "all":
+    scenarios = os.listdir(scenarios_dir)
+elif args.mode in ["train", "val", "test"]:
+    mode_dir = Path("../cvae/data/data_v2/") / args.mode
+    df = pd.read_parquet(mode_dir / f"c_{args.mode}.parquet")
+    scenarios_in_mode = df["scenario"].unique().tolist()
+    
 if args.scenario:
     scenarios = [args.scenario]
 else:
-    scenarios = os.listdir(scenarios_dir)
+    scenarios = [sc for sc in os.listdir(scenarios_dir) if sc[:-4] in scenarios_in_mode]
+    # scenarios = os.listdir(scenarios)
 
 EVAL = True
 # Initialize Planner
 # *************************************
 
 evaluation = Evaluation()
-
+scenarios_in_mode = scenarios
 for i, sc in enumerate(scenarios):
     # --- initialize accumulators ---
     cart_x, cart_y, cart_theta, cart_v, cart_a = [], [], [], [], []
@@ -75,7 +84,7 @@ for i, sc in enumerate(scenarios):
     
     scenario_name = sc[:-4]
     
-    if sc.endswith(".xml") and scenario_name in scenarios_in_mode:            
+    if sc.endswith(".xml"):           
         
         time_list = []
         config = ReactivePlannerConfiguration.load(config_file, sc)
