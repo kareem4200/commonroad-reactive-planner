@@ -53,7 +53,7 @@ else:
     config_file = "../cvae/config/reactive_planner_config_rp.yaml"
 # print(config_file)
 # scenarios_dir = "../cvae/scenarios/rp_success"
-scenarios_dir = "../cvae/all_scenarios/planned_scenarios"
+scenarios_dir = "../cvae/all_scenarios/"
 
 # initialize and get logger
 logger = initialize_logger(ReactivePlannerConfiguration())
