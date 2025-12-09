@@ -36,12 +36,13 @@ class CVAEHelper:
         # self.scenario_imgs.sort_index(inplace=True)
         # print(self.scenario_imgs)
         
-        if mode == "train":
-            path = "../cvae/data/data_v2/train/imgs/"
-        elif mode == "val":
-            path = "../cvae/data/data_v2/val/imgs/"
-        else:
-            path = "../cvae/data/data_v2/test/imgs/"
+        # if mode == "train":
+        #     path = "../cvae/data/data_v2/train/imgs/"
+        # elif mode == "val":
+        #     path = "../cvae/data/data_v2/val/imgs/"
+        # else:
+        #     path = "../cvae/data/data_v2/test/imgs/"
+        path = f"../cvae/data/data_v2/{mode}/imgs/"
         
         # x = pd.read_parquet(path + scenario_id)
         # self.no_time_steps = x.loc[x["scenario"] == str(scenario.scenario_id), "time_step"].max()
