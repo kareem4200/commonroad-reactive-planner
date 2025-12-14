@@ -127,7 +127,7 @@ class WX1CostFunction(CostFunction):
         cost_total = (cost_time + cost_speed + cost_accel + cost_offset) / len(traj.cartesian.x)
         return cost_total
 
-    def evaluate(self, trajectory: commonroad_rp.trajectories.TrajectorySample, target_speed: Optional[float] = None) -> float:
+    def evaluate(self, trajectory: commonroad_rp.trajectories.TrajectorySample, target_speed: float = None) -> float:
         if target_speed is None:
             raise ValueError("Target speed must be provided for WX1CostFunction.")
         return self.cost_total(trajectory, target_speed)

@@ -342,6 +342,7 @@ class TrajectorySample(Sample):
                  trajectory_lat: PolynomialTrajectory):
         self.horizon = horizon
         self.dt = dt
+        self.desired_speed: Optional[float] = None
         assert isinstance(trajectory_long,
                           PolynomialTrajectory), '<TrajectorySample/init>: Provided longitudinal trajectory ' \
                                                  'is not valid! trajectory = {}'.format(
@@ -400,7 +401,7 @@ class TrajectorySample(Sample):
         Sets the cost function for evaluating the costs of the polynomial trajectory
         :param cost_function: The cost function for computing the costs
         """
-        self._cost = cost_function.evaluate(self)
+        self._cost = cost_function.evaluate(self, target_speed=self.desired_speed)
         self._cost_function = cost_function
 
     @property

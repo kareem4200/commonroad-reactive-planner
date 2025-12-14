@@ -224,7 +224,7 @@ class FixedIntervalSampling(SamplingSpace):
         self.samples_s = PositionSampling(self.config_sampling.s_min, self.config_sampling.s_max, num_sampling_levels)
 
     def generate_trajectories_at_level(self, level_sampling: int, x_0_lon: np.ndarray, x_0_lat: np.ndarray,
-                                       longitudinal_mode: str, low_vel_mode: bool, time_step: int) \
+                                       longitudinal_mode: str, low_vel_mode: bool, time_step: int, desired_speed_c: float) \
             -> List[TrajectorySample]:
         """
         Implements trajectory generation method for sampling trajectories in fixed intervals in t, v, d  or s domain
@@ -266,6 +266,7 @@ class FixedIntervalSampling(SamplingSpace):
                                                                             x_d=end_state_lat)
                             if trajectory_lat.coeffs is not None:
                                 trajectory_sample = TrajectorySample(self.horizon, self.dt, trajectory_long, trajectory_lat)
+                                trajectory_sample.desired_speed = desired_speed_c
                                 list_trajectories.append(trajectory_sample)
                                 list_samples.append([t, d, lon_sample])
             return list_trajectories, list_samples
@@ -320,6 +321,7 @@ class FixedIntervalSampling(SamplingSpace):
 
                     if trajectory_lat.coeffs is not None:
                         trajectory_sample = TrajectorySample(self.horizon, self.dt, trajectory_long, trajectory_lat)
+                        trajectory_sample.desired_speed = desired_speed_c
                         list_trajectories.append(trajectory_sample)
                         list_samples.append(sample.tolist())
 

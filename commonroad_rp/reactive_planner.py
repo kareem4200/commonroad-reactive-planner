@@ -32,7 +32,7 @@ from commonroad_dc.collision.trajectory_queries.trajectory_queries import trajec
 
 # commonroad_rp imports
 from commonroad_rp.state import ReactivePlannerState
-from commonroad_rp.cost_function import CostFunction, DefaultCostFunction
+from commonroad_rp.cost_function import CostFunction, DefaultCostFunction, WX1CostFunction
 from commonroad_rp.sampling import TimeSampling, VelocitySampling, PositionSampling, SamplingSpace, \
     sampling_space_factory
 from commonroad_rp.polynomial_trajectory import QuinticTrajectory, QuarticTrajectory
@@ -117,6 +117,14 @@ class ReactivePlanner(object):
         
         # keep track of number of trajectories sampled
         self._num_sampled_trajectories = 0
+        
+        # get the desired speed from the planning problem goal here
+        # instead of setting it later during planning
+        goal = self.config.planning_problem.goal
+        if hasattr(goal.state_list[0], 'velocity'):
+            self.desired_speed_c = goal.state_list[0].velocity.end
+        else:
+            self.desired_speed_c = 13.5
         
     @property
     def num_sampled_trajectories(self) -> int:
@@ -397,8 +405,11 @@ class ReactivePlanner(object):
         if cost_function:
             self.cost_function = cost_function
         else:
-            self.cost_function = DefaultCostFunction(self._desired_speed, desired_d=0.0,
-                                                     desired_s=self._desired_lon_position)
+            # self.cost_function = DefaultCostFunction(self._desired_speed, desired_d=0.0,
+            #                                          desired_s=self._desired_lon_position)
+            
+            # replace DefaultCostFunction with WX1CostFunction in FISS+
+            self.cost_function = WX1CostFunction()
 
     def set_sampling_space(self, sampling_space: Type[SamplingSpace] = None):
         if sampling_space:
@@ -456,7 +467,8 @@ class ReactivePlanner(object):
                                                                                    x_0_lat,
                                                                                    self.config.sampling.longitudinal_mode,
                                                                                    self._low_vel_mode,
-                                                                                   self.x_0.time_step)
+                                                                                   self.x_0.time_step,
+                                                                                   self.desired_speed_c)
         # save trajectories and samples in a dictionary
         self.trajectory_samples_dict = dict(zip(trajectories, samples))
 
