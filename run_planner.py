@@ -95,6 +95,8 @@ for i, sc in enumerate(scenarios):
         logger.info(f"Planning for {sc}")
 
         try:
+            # get the final time step of the scenario
+            final_time_step = config.scenario.dynamic_obstacles[0].prediction.final_time_step
             # run route planner
             route_planner = RoutePlanner(config.scenario, config.planning_problem)
             route = route_planner.plan_routes().retrieve_first_route()
@@ -123,7 +125,8 @@ for i, sc in enumerate(scenarios):
             cl_d_ddot.append(lat[2])
             cl_theta.append(cl_theta0)
 
-            while not planner.goal_reached():
+            # while not planner.goal_reached():
+            for t in range(final_time_step):
                 current_count = len(planner.record_state_list)
 
                 planner.set_desired_velocity(current_speed=planner.x_0.velocity)
@@ -174,41 +177,41 @@ for i, sc in enumerate(scenarios):
                 
             
             # save sampled variables and conditiobned variables if scenario is successfully planned
-            if planner.goal_reached():
-                # Create final cart_sample and cvln_sample
-                cart_sample = CartesianSample(
-                    x=np.array(cart_x),
-                    y=np.array(cart_y),
-                    theta=np.array(cart_theta),
-                    v=np.array(cart_v),
-                    a=np.array(cart_a),
-                    kappa=np.zeros_like((len(cart_x),)),
-                    kappa_dot=np.zeros_like((len(cart_x),)),
-                    current_time_step=int(0)
-                )
-                cvln_sample = CurviLinearSample(
-                    s=np.array(cl_s),
-                    ss=np.array(cl_s_dot),
-                    sss=np.array(cl_s_ddot),
-                    d=np.array(cl_d),
-                    dd=np.array(cl_d_dot),
-                    ddd=np.array(cl_d_ddot),
-                    theta=np.array(cl_theta),
-                    current_time_step=int(0)
-                )
-                logger.info(f"Scenario {sc} successfully planned!")
+            # if planner.goal_reached():
+            # Create final cart_sample and cvln_sample
+            cart_sample = CartesianSample(
+                x=np.array(cart_x),
+                y=np.array(cart_y),
+                theta=np.array(cart_theta),
+                v=np.array(cart_v),
+                a=np.array(cart_a),
+                kappa=np.zeros_like((len(cart_x),)),
+                kappa_dot=np.zeros_like((len(cart_x),)),
+                current_time_step=int(0)
+            )
+            cvln_sample = CurviLinearSample(
+                s=np.array(cl_s),
+                ss=np.array(cl_s_dot),
+                sss=np.array(cl_s_ddot),
+                d=np.array(cl_d),
+                dd=np.array(cl_d_dot),
+                ddd=np.array(cl_d_ddot),
+                theta=np.array(cl_theta),
+                current_time_step=int(0)
+            )
+            logger.info(f"Scenario {sc} successfully planned!")
+            
+            # run scenario evaluation
+            if EVAL:
+                if config.sampling.cvae_sampling:
+                    cvae_time_list = planner.sampling_space.cvae_inference_time_list
+                evaluation.build_trajectory_sample(cart_sample, cvln_sample)
+                evaluation.run_evaluation(planner.record_state_list,
+                                            time_list,
+                                            int(planner.num_sampled_trajectories),
+                                            cvae_time_list if config.sampling.cvae_sampling else None,)
                 
-                # run scenario evaluation
-                if EVAL:
-                    if config.sampling.cvae_sampling:
-                        cvae_time_list = planner.sampling_space.cvae_inference_time_list
-                    evaluation.build_trajectory_sample(cart_sample, cvln_sample)
-                    evaluation.run_evaluation(planner.record_state_list,
-                                              time_list,
-                                              int(planner.num_sampled_trajectories),
-                                              cvae_time_list if config.sampling.cvae_sampling else None,)
-                    
-                    make_gif(config, range(0, planner.record_state_list[-1].time_step))
+                make_gif(config, range(0, planner.record_state_list[-1].time_step))
                 
         except Exception as e:
             logger.info(f"Scenario {sc} failed!")
